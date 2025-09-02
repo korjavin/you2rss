@@ -23,3 +23,19 @@ func UpsertUser(id int64, username string) (*models.User, error) {
 	}
 	return user, nil
 }
+
+// GetUserByRSSUUID retrieves a user by their RSS UUID.
+func GetUserByRSSUUID(uuid string) (*models.User, error) {
+	query := `
+		SELECT id, telegram_username, rss_uuid, created_at, updated_at
+		FROM users
+		WHERE rss_uuid = $1
+	`
+	user := &models.User{}
+	err := DB.Get(user, query, uuid)
+	if err != nil {
+		log.Printf("Error getting user by rss_uuid: %v", err)
+		return nil, err
+	}
+	return user, nil
+}

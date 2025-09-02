@@ -24,3 +24,7 @@ go.work
 /bin
 /main
 main
+server
+worker
+scheduler
+yt-podcaster

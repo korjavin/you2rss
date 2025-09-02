@@ -54,3 +54,18 @@ func DeleteSubscription(userID int64, subscriptionID int) error {
 	}
 	return nil
 }
+
+func GetAllSubscriptions() ([]models.Subscription, error) {
+	query := `
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, created_at
+		FROM subscriptions
+		ORDER BY created_at DESC
+	`
+	var subscriptions []models.Subscription
+	err := DB.Select(&subscriptions, query)
+	if err != nil {
+		log.Printf("Error getting all subscriptions: %v", err)
+		return nil, err
+	}
+	return subscriptions, nil
+}

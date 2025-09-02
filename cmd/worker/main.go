@@ -39,6 +39,7 @@ func main() {
 
 	mux.HandleFunc(tasks.TypeCheckChannel, taskHandler.HandleCheckChannelTask)
 	mux.HandleFunc(tasks.TypeProcessVideo, taskHandler.HandleProcessVideoTask)
+	mux.HandleFunc(tasks.TypeCheckAllSubscriptions, taskHandler.HandleCheckAllSubscriptionsTask)
 
 	if err := srv.Run(mux); err != nil {
 		log.Fatalf("could not run server: %v", err)

@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	TypeCheckChannel = "channel:check"
-	TypeProcessVideo = "video:process"
+	TypeCheckChannel         = "channel:check"
+	TypeProcessVideo         = "video:process"
+	TypeCheckAllSubscriptions = "subscriptions:check"
 )
 
 type CheckChannelTaskPayload struct {
@@ -36,4 +37,8 @@ func NewProcessVideoTask(youtubeVideoID string, subscriptionID int) (*asynq.Task
 		return nil, err
 	}
 	return asynq.NewTask(TypeProcessVideo, payload), nil
+}
+
+func NewCheckAllSubscriptionsTask() (*asynq.Task, error) {
+	return asynq.NewTask(TypeCheckAllSubscriptions, nil), nil
 }

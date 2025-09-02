@@ -23,6 +23,13 @@ FROM alpine:latest
 
 WORKDIR /app
 
+# Install required dependencies for yt-dlp and ffmpeg
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    ffmpeg \
+    && pip3 install --no-cache-dir yt-dlp
+
 # Copy the built binaries from the builder stage
 COPY --from=builder /app/bin/server .
 COPY --from=builder /app/bin/worker .

@@ -9,11 +9,19 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/hibiken/asynq"
 	"github.com/joho/godotenv"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/internal/middleware"
 	"yt-podcaster/internal/models"
+	"yt-podcaster/pkg/tasks"
 )
+
+
+// App holds application-wide dependencies.
+type App struct {
+	asynqClient tasks.TaskEnqueuer
+}
 
 func main() {
 	err := godotenv.Load()
@@ -23,13 +31,24 @@ func main() {
 
 	db.InitDB()
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "127.0.0.1:6379"
+	}
+
+	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	defer client.Close()
+
+	app := &App{
+		asynqClient: client,
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	rootHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Naive path resolving. Would be better to use embed or a more robust solution
 		fp := filepath.Join("web", "templates", "index.html")
 		tmpl, err := template.ParseFiles(fp)
 		if err != nil {
@@ -43,7 +62,7 @@ func main() {
 	})
 
 	http.Handle("/", middleware.AuthMiddleware(rootHandler))
-	http.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(subscriptionsHandler)))
+	http.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(app.subscriptionsHandler)))
 
 	log.Printf("Starting server on :%s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -51,12 +70,12 @@ func main() {
 	}
 }
 
-func subscriptionsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) subscriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		getSubscriptionsHandler(w, r)
 	case http.MethodPost:
-		postSubscriptionsHandler(w, r)
+		app.postSubscriptionsHandler(w, r)
 	case http.MethodDelete:
 		deleteSubscriptionsHandler(w, r)
 	default:
@@ -64,31 +83,7 @@ func subscriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func deleteSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok {
-		http.Error(w, "User not found in context", http.StatusInternalServerError)
-		return
-	}
-
-	// Get ID from URL path: /subscriptions/{id}
-	path := strings.TrimPrefix(r.URL.Path, "/subscriptions/")
-	id, err := strconv.Atoi(path)
-	if err != nil {
-		http.Error(w, "Invalid subscription ID", http.StatusBadRequest)
-		return
-	}
-
-	err = db.DeleteSubscription(user.ID, id)
-	if err != nil {
-		http.Error(w, "Failed to delete subscription", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
-func postSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) postSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
 		http.Error(w, "User not found in context", http.StatusInternalServerError)
@@ -116,14 +111,49 @@ func postSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// For now, we'll just use the channel ID as the title.
 	// A better solution would be to fetch the channel title from the YouTube API.
-	_, err := db.AddSubscription(user.ID, channelID, channelID)
+	sub, err := db.AddSubscription(user.ID, channelID, channelID)
 	if err != nil {
 		http.Error(w, "Failed to add subscription", http.StatusInternalServerError)
 		return
 	}
 
+	// Enqueue a task to check the channel for new videos.
+	task, err := tasks.NewCheckChannelTask(sub.ID)
+	if err != nil {
+		log.Printf("could not create task: %v", err)
+	} else {
+		_, err = app.asynqClient.Enqueue(task)
+		if err != nil {
+			log.Printf("could not enqueue task: %v", err)
+		}
+	}
+
 	// After adding, return the updated list of subscriptions
 	getSubscriptionsHandler(w, r)
+}
+
+func deleteSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "User not found in context", http.StatusInternalServerError)
+		return
+	}
+
+	// Get ID from URL path: /subscriptions/{id}
+	path := strings.TrimPrefix(r.URL.Path, "/subscriptions/")
+	id, err := strconv.Atoi(path)
+	if err != nil {
+		http.Error(w, "Invalid subscription ID", http.StatusBadRequest)
+		return
+	}
+
+	err = db.DeleteSubscription(user.ID, id)
+	if err != nil {
+		http.Error(w, "Failed to delete subscription", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func getSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {

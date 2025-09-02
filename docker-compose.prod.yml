@@ -1,0 +1,100 @@
+# Production docker-compose.yml Template
+# This file will be updated by GitHub Actions workflow
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: yt_podcaster
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - yt-podcaster-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:6-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - yt-podcaster-network
+    restart: unless-stopped
+
+  server:
+    # The image tag will be replaced by the GitHub Actions workflow
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: yt-podcaster-server
+    command: ./server
+    environment:
+      DATABASE_URL: "postgres://user:password@postgres:5432/yt_podcaster?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      AUDIO_STORAGE_PATH: "/app/audio"
+      BASE_URL: "https://your-domain.com" # Replace with your domain
+      # Optional configuration
+      RATE_LIMIT_PER_MINUTE: "100"
+      RATE_LIMIT_BURST: "5"
+      MAX_SUBSCRIPTIONS_PER_USER: "100"
+      PROCESS_VIDEO_TIMEOUT_MINUTES: "15"
+      CHANNEL_INFO_TIMEOUT_SECONDS: "15"
+    volumes:
+      - audio_data:/app/audio
+    networks:
+      - yt-podcaster-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.yt-podcaster.rule=Host(`your-domain.com`)" # Replace with your domain
+      - "traefik.http.routers.yt-podcaster.entrypoints=websecure"
+      - "traefik.http.routers.yt-podcaster.tls.certresolver=myresolver"
+      - "traefik.http.services.yt-podcaster.loadbalancer.server.port=8080"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  worker:
+    # The image tag will be replaced by the GitHub Actions workflow  
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: yt-podcaster-worker
+    command: ./worker
+    environment:
+      DATABASE_URL: "postgres://user:password@postgres:5432/yt_podcaster?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      AUDIO_STORAGE_PATH: "/app/audio"
+      # Optional configuration
+      PROCESS_VIDEO_TIMEOUT_MINUTES: "15"
+    volumes:
+      - audio_data:/app/audio
+    networks:
+      - yt-podcaster-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  scheduler:
+    # The image tag will be replaced by the GitHub Actions workflow
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: yt-podcaster-scheduler
+    command: ./scheduler
+    environment:
+      DATABASE_URL: "postgres://user:password@postgres:5432/yt_podcaster?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+    networks:
+      - yt-podcaster-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  audio_data:
+
+networks:
+  yt-podcaster-network:
+    external: true

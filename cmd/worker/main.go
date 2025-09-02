@@ -11,6 +11,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// CommitSHA is set at build time via ldflags
+var CommitSHA = "unknown"
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -41,6 +44,7 @@ func main() {
 	mux.HandleFunc(tasks.TypeProcessVideo, taskHandler.HandleProcessVideoTask)
 	mux.HandleFunc(tasks.TypeCheckAllSubscriptions, taskHandler.HandleCheckAllSubscriptionsTask)
 
+	log.Printf("Worker starting (commit: %s)", CommitSHA)
 	if err := srv.Run(mux); err != nil {
 		log.Fatalf("could not run server: %v", err)
 	}

@@ -10,6 +10,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// CommitSHA is set at build time via ldflags
+var CommitSHA = "unknown"
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -39,6 +42,7 @@ func main() {
 		log.Fatalf("could not register task: %v", err)
 	}
 
+	log.Printf("Scheduler starting (commit: %s)", CommitSHA)
 	if err := scheduler.Run(); err != nil {
 		log.Fatalf("could not run scheduler: %v", err)
 	}

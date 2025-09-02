@@ -19,6 +19,9 @@ import (
 	"yt-podcaster/pkg/tasks"
 )
 
+// CommitSHA is set at build time via ldflags
+var CommitSHA = "unknown"
+
 type App struct {
 	router      *mux.Router
 	templates   *template.Template
@@ -98,7 +101,7 @@ func (a *App) Serve() {
 		port = "8080"
 	}
 
-	log.Printf("Server listening on port %s", port)
+	log.Printf("Server listening on port %s (commit: %s)", port, CommitSHA)
 	log.Fatal(http.ListenAndServe(":"+port, a.router))
 }
 

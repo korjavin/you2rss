@@ -1,6 +1,9 @@
 # Stage 1: Build the Go applications
 FROM golang:1.21-alpine AS builder
 
+# Add build argument for commit SHA
+ARG COMMIT_SHA=unknown
+
 WORKDIR /app
 
 # Copy go.mod and go.sum files
@@ -12,10 +15,10 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the applications
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./bin/server ./cmd/server
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./bin/worker ./cmd/worker
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./bin/scheduler ./cmd/scheduler
+# Build the applications with commit SHA embedded
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.CommitSHA=${COMMIT_SHA}" -o ./bin/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.CommitSHA=${COMMIT_SHA}" -o ./bin/worker ./cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.CommitSHA=${COMMIT_SHA}" -o ./bin/scheduler ./cmd/scheduler
 
 
 # Stage 2: Create the final image

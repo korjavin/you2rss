@@ -105,6 +105,32 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	return nil
 }
 
+func (h *TaskHandler) HandleCheckAllSubscriptionsTask(ctx context.Context, t *asynq.Task) error {
+	log.Println("Checking all subscriptions...")
+
+	subscriptions, err := db.GetAllSubscriptions()
+	if err != nil {
+		return fmt.Errorf("failed to get all subscriptions: %w", err)
+	}
+
+	for _, sub := range subscriptions {
+		task, err := tasks.NewCheckChannelTask(sub.ID)
+		if err != nil {
+			log.Printf("failed to create check channel task for subscription %d: %v", sub.ID, err)
+			continue
+		}
+
+		_, err = h.asynqClient.Enqueue(task)
+		if err != nil {
+			log.Printf("failed to enqueue check channel task for subscription %d: %v", sub.ID, err)
+			continue
+		}
+	}
+
+	log.Println("Finished checking all subscriptions.")
+	return nil
+}
+
 func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task) error {
 	var p tasks.CheckChannelTaskPayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {

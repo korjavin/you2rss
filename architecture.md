@@ -16,25 +16,25 @@ The following diagram illustrates the flow of data and requests through the syst
 ```mermaid
 graph TD
     subgraph User
-        A[Telegram Client] --> B{Mini App (htmx)};
-        H[Podcast Player];
+        A[Telegram Client] --> B{Mini App htmx}
+        H[Podcast Player]
     end
 
     subgraph "YT-Podcaster Service"
-        B -- HTTPS Request --> C[Go Web Server / API];
-        C -- Enqueue Task --> D[Redis (Asynq)];
-        E[Asynq Worker] -- Dequeue Task --> D;
-        C <--> F[PostgreSQL DB];
-        E <--> F;
-        C -- Serves RSS/Audio --> H;
+        B -- HTTPS Request --> C[Go Web Server / API]
+        C -- Enqueue Task --> D[Redis Asynq]
+        E[Asynq Worker] -- Dequeue Task --> D
+        C <--> F[PostgreSQL DB]
+        E <--> F
+        C -- Serves RSS/Audio --> H
     end
 
     subgraph External
-        E -- Fetches Video --> G[YouTube];
+        E -- Fetches Video --> G[YouTube]
     end
 
-    style C fill:#f9f,stroke:#333,stroke-width:2px;
-    style E fill:#ccf,stroke:#333,stroke-width:2px;
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style E fill:#ccf,stroke:#333,stroke-width:2px
 ```
 
 This decoupled architecture ensures resilience. A failure in a worker process while downloading a large video will not impact the web server's ability to serve other users. Asynq's built-in retry mechanisms can automatically re-attempt the failed job, contributing to the overall robustness of the service.

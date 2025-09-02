@@ -162,6 +162,10 @@ func TestServeAudioHandler(t *testing.T) {
 	app.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "audio/mp4a-latm", rr.Header().Get("Content-Type"))
+	
+	// MIME type can vary between systems for .m4a files
+	contentType := rr.Header().Get("Content-Type")
+	assert.Contains(t, []string{"audio/mp4", "audio/mp4a-latm"}, contentType)
+	
 	assert.Equal(t, "dummy audio data", rr.Body.String())
 }

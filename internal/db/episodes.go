@@ -11,7 +11,6 @@ const (
 	StatusFailed     = "FAILED"
 )
 
-
 func CreateEpisode(subID int, videoID string) (models.Episode, error) {
 	episode := models.Episode{}
 	err := DB.Get(&episode, "INSERT INTO episodes (subscription_id, youtube_video_id) VALUES ($1, $2) RETURNING *", subID, videoID)

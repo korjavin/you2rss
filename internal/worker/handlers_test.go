@@ -89,12 +89,10 @@ func TestHandleCheckChannelTask(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "video1", enqueuedPayload.YoutubeVideoID)
 
-
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
-
 
 func TestHandleProcessVideoTask(t *testing.T) {
 	// 1. Setup mock database
@@ -129,7 +127,6 @@ func TestHandleProcessVideoTask(t *testing.T) {
 	assert.NoError(t, err)
 	dummyFile.Close()
 
-
 	// 3. Setup TaskHandler
 	handler := NewTaskHandler(nil) // No enqueuing in this handler
 
@@ -155,7 +152,6 @@ func TestHandleProcessVideoTask(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
-
 
 // TestHelperProcess isn't a real test. It's used as a helper for tests that
 // need to mock exec.Command.

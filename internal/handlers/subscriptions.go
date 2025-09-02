@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -16,7 +17,25 @@ import (
 	"yt-podcaster/pkg/tasks"
 )
 
-const maxSubscriptionsPerUser = 20
+func getMaxSubscriptionsPerUser() int {
+	maxSubs := 100 // default as suggested in review
+	if env := os.Getenv("MAX_SUBSCRIPTIONS_PER_USER"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			maxSubs = val
+		}
+	}
+	return maxSubs
+}
+
+func getChannelInfoTimeout() time.Duration {
+	timeout := 15 * time.Second // default as in original code
+	if env := os.Getenv("CHANNEL_INFO_TIMEOUT_SECONDS"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			timeout = time.Duration(val) * time.Second
+		}
+	}
+	return timeout
+}
 
 func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -45,7 +64,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if count >= maxSubscriptionsPerUser {
+	if count >= getMaxSubscriptionsPerUser() {
 		http.Error(w, "Subscription limit reached", http.StatusForbidden)
 		return
 	}
@@ -62,7 +81,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use yt-dlp to get channel ID and title
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), getChannelInfoTimeout())
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "yt-dlp",

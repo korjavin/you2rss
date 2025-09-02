@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/hibiken/asynq"
@@ -63,8 +64,22 @@ func (a *App) registerHandlers() {
 	a.router.HandleFunc("/rss/{uuid}", h.GetRSSFeed).Methods("GET")
 	a.router.HandleFunc("/audio/{filename:.+}", h.ServeAudioFile).Methods("GET")
 
-	// Create rate limiter
-	rateLimiter := middleware.NewRateLimiterMiddleware(rate.Limit(100.0/60.0), 5)
+	// Create rate limiter with configurable values
+	rateLimitPerMinute := 100.0 // default
+	if env := os.Getenv("RATE_LIMIT_PER_MINUTE"); env != "" {
+		if val, err := strconv.ParseFloat(env, 64); err == nil {
+			rateLimitPerMinute = val
+		}
+	}
+
+	rateLimitBurst := 5 // default
+	if env := os.Getenv("RATE_LIMIT_BURST"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			rateLimitBurst = val
+		}
+	}
+
+	rateLimiter := middleware.NewRateLimiterMiddleware(rate.Limit(rateLimitPerMinute/60.0), rateLimitBurst)
 
 	// Authenticated handlers
 	authMiddleware := func(next http.Handler) http.Handler {

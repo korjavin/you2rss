@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"yt-podcaster/internal/db"
@@ -17,6 +18,16 @@ import (
 )
 
 var execCommand = exec.Command
+
+func getProcessVideoTimeout() time.Duration {
+	timeout := 15 * time.Minute // default as in original code
+	if env := os.Getenv("PROCESS_VIDEO_TIMEOUT_MINUTES"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			timeout = time.Duration(val) * time.Minute
+		}
+	}
+	return timeout
+}
 
 type YtDlpOutput struct {
 	ID          string  `json:"id"`
@@ -57,7 +68,7 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	audioPath := filepath.Join("audio", audioFilename)
 
 	// Create a context with a timeout
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, getProcessVideoTimeout())
 	defer cancel()
 
 	// yt-dlp command

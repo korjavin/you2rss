@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	TypeCheckChannel         = "channel:check"
-	TypeProcessVideo         = "video:process"
+	TypeCheckChannel          = "channel:check"
+	TypeProcessVideo          = "video:process"
 	TypeCheckAllSubscriptions = "subscriptions:check"
 )
 

@@ -13,7 +13,8 @@ import (
 
 type contextKey string
 
-const userContextKey = contextKey("userID")
+// UserContextKey is the key for the user in the context.
+const UserContextKey = contextKey("user")
 
 // AuthMiddleware validates the Telegram Mini App initData and upserts the user.
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -60,14 +61,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Store user ID in context
-		ctx := context.WithValue(r.Context(), userContextKey, user.ID)
+		// Store user in context
+		ctx := context.WithValue(r.Context(), UserContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-// GetUserIDFromContext retrieves the user ID from the request context.
-func GetUserIDFromContext(ctx context.Context) (int64, bool) {
-	userID, ok := ctx.Value(userContextKey).(int64)
-	return userID, ok
 }

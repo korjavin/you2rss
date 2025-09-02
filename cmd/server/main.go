@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/hibiken/asynq"
 	"github.com/joho/godotenv"
+	"golang.org/x/time/rate"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/internal/handlers"
 	"yt-podcaster/internal/middleware"
@@ -62,11 +63,18 @@ func (a *App) registerHandlers() {
 	a.router.HandleFunc("/rss/{uuid}", h.GetRSSFeed).Methods("GET")
 	a.router.HandleFunc("/audio/{filename:.+}", h.ServeAudioFile).Methods("GET")
 
+	// Create rate limiter
+	rateLimiter := middleware.NewRateLimiterMiddleware(rate.Limit(100.0/60.0), 5)
+
 	// Authenticated handlers
-	a.router.Handle("/", middleware.AuthMiddleware(http.HandlerFunc(h.GetRoot))).Methods("GET")
-	a.router.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
-	a.router.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")
-	a.router.Handle("/subscriptions/{id}", middleware.AuthMiddleware(http.HandlerFunc(h.DeleteSubscription))).Methods("DELETE")
+	authMiddleware := func(next http.Handler) http.Handler {
+		return middleware.AuthMiddleware(rateLimiter.Middleware(next))
+	}
+
+	a.router.Handle("/", authMiddleware(http.HandlerFunc(h.ServeWebApp))).Methods("GET")
+	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
+	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")
+	a.router.Handle("/subscriptions/{id}", authMiddleware(http.HandlerFunc(h.DeleteSubscription))).Methods("DELETE")
 }
 
 func (a *App) Serve() {

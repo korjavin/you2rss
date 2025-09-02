@@ -27,6 +27,17 @@ func GetSubscriptionsByUserID(userID int64) ([]models.Subscription, error) {
 	return subscriptions, nil
 }
 
+func CountSubscriptionsByUserID(userID int64) (int, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM subscriptions WHERE user_id = $1"
+	err := DB.Get(&count, query, userID)
+	if err != nil {
+		log.Printf("Error counting subscriptions for user %d: %v", userID, err)
+		return 0, err
+	}
+	return count, nil
+}
+
 func AddSubscription(userID int64, channelID string, channelTitle string) (*models.Subscription, error) {
 	query := `
 		INSERT INTO subscriptions (user_id, youtube_channel_id, youtube_channel_title)

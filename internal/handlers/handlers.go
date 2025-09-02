@@ -18,3 +18,10 @@ func New(templates *template.Template, asynqClient tasks.TaskEnqueuer, audioStor
 		audioStoragePath: audioStoragePath,
 	}
 }
+
+func (h *Handlers) ServeWebApp(w http.ResponseWriter, r *http.Request) {
+	err := h.templates.ExecuteTemplate(w, "index.html", nil)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}

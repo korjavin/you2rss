@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/telegram-mini-apps/init-data-golang"
 	"yt-podcaster/internal/db"
@@ -25,8 +26,18 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		initData := strings.TrimPrefix(authHeader, "tma ")
+
+		// Validate the initData
+		err := initdata.Validate(initData, telegramBotToken, 1*time.Hour)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Parse the validated initData
 		data, err := initdata.Parse(initData)
 		if err != nil {
+			// This should not happen if validation passed
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}

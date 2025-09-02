@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/pkg/tasks"
 
@@ -55,8 +56,12 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	audioFilename := fmt.Sprintf("%s.m4a", episode.AudioUUID)
 	audioPath := filepath.Join("audio", audioFilename)
 
+	// Create a context with a timeout
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	defer cancel()
+
 	// yt-dlp command
-	cmd := execCommand("yt-dlp",
+	cmd := exec.CommandContext(ctx, "yt-dlp",
 		"-x", // extract audio
 		"--audio-format", "m4a",
 		"-o", audioPath,

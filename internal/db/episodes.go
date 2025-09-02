@@ -42,3 +42,16 @@ func UpdateEpisodeProcessingFailed(id int) error {
 	_, err := DB.Exec("UPDATE episodes SET status = 'FAILED' WHERE id = $1", id)
 	return err
 }
+
+func GetCompletedEpisodesByUserID(userID int64) ([]models.Episode, error) {
+	var episodes []models.Episode
+	query := `
+		SELECT e.*
+		FROM episodes e
+		JOIN subscriptions s ON e.subscription_id = s.id
+		WHERE s.user_id = $1 AND e.status = 'COMPLETED'
+		ORDER BY e.created_at DESC
+	`
+	err := DB.Select(&episodes, query, userID)
+	return episodes, err
+}

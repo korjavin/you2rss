@@ -12,6 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/joho/godotenv"
 	"yt-podcaster/internal/db"
+	"yt-podcaster/internal/handlers"
 	"yt-podcaster/internal/middleware"
 	"yt-podcaster/internal/models"
 	"yt-podcaster/pkg/tasks"
@@ -63,6 +64,8 @@ func main() {
 
 	http.Handle("/", middleware.AuthMiddleware(rootHandler))
 	http.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(app.subscriptionsHandler)))
+	http.HandleFunc("/rss/", handlers.RSSFeedHandler)
+	http.HandleFunc("/audio/", handlers.AudioServerHandler)
 
 	log.Printf("Starting server on :%s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {

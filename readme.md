@@ -84,7 +84,33 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-Run database migrations to create the required tables. (Assuming a migration tool is configured).
+## Database Migrations
+
+This project uses `golang-migrate/migrate` to manage database schema changes. The migration files are located in the `/migrations` directory.
+
+### Installing the Migration Tool
+
+You can install the `migrate` CLI tool with the following command:
+
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+This will install the tool with support for PostgreSQL. Make sure your `$GOPATH/bin` directory is in your system's `PATH`.
+
+### Running Migrations
+
+To apply all pending "up" migrations to your database, run the following command. Make sure your `DATABASE_URL` in the `.env` file is correctly configured.
+
+```bash
+migrate -database "$DATABASE_URL" -path migrations up
+```
+
+To roll back the last applied migration, use:
+
+```bash
+migrate -database "$DATABASE_URL" -path migrations down 1
+```
 
 ## Running the Service
 

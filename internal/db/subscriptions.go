@@ -5,6 +5,12 @@ import (
 	"yt-podcaster/internal/models"
 )
 
+func GetSubscriptionByID(id int) (models.Subscription, error) {
+	subscription := models.Subscription{}
+	err := DB.Get(&subscription, "SELECT * FROM subscriptions WHERE id = $1", id)
+	return subscription, err
+}
+
 func GetSubscriptionsByUserID(userID int64) ([]models.Subscription, error) {
 	query := `
 		SELECT id, user_id, youtube_channel_id, youtube_channel_title, created_at

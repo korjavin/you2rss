@@ -18,8 +18,8 @@ func TestAuthMiddleware(t *testing.T) {
 	validInitData := "query_id=AAHdF614AAAAAN0Xrhom_pA&user=%7B%22id%22%3A123%2C%22first_name%22%3A%22Test%22%2C%22last_name%22%3A%22User%22%2C%22username%22%3A%22testuser%22%2C%22language_code%22%3A%22en%22%7D&auth_date=1672531200&hash=e51bca5855f98822011a62a939aa68e9be25b5502195f128038d8c364273872f"
 
 	originalToken := telegramBotToken
-	telegramBotToken = "dummy-token"
-	defer func() { telegramBotToken = originalToken }()
+	SetTestToken("dummy-token")
+	defer func() { SetTestToken(originalToken) }()
 
 	t.Run("valid auth data", func(t *testing.T) {
 		_, mock := test.NewMockDB(t)

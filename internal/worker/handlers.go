@@ -18,6 +18,7 @@ import (
 )
 
 var execCommand = exec.Command
+var execCommandContext = exec.CommandContext
 
 func getProcessVideoTimeout() time.Duration {
 	timeout := 15 * time.Minute // default as in original code
@@ -72,7 +73,7 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	defer cancel()
 
 	// yt-dlp command
-	cmd := exec.CommandContext(ctx, "yt-dlp",
+	cmd := execCommandContext(ctx, "yt-dlp",
 		"-x", // extract audio
 		"--audio-format", "m4a",
 		"-o", audioPath,

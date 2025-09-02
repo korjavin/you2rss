@@ -17,6 +17,9 @@ import (
 	"yt-podcaster/pkg/tasks"
 )
 
+// execCommandContext can be mocked in tests
+var execCommandContext = exec.CommandContext
+
 func getMaxSubscriptionsPerUser() int {
 	maxSubs := 100 // default as suggested in review
 	if env := os.Getenv("MAX_SUBSCRIPTIONS_PER_USER"); env != "" {
@@ -84,7 +87,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), getChannelInfoTimeout())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "yt-dlp",
+	cmd := execCommandContext(ctx, "yt-dlp",
 		"--print", "%(channel_id)s\n%(channel)s",
 		"--playlist-items", "0",
 		channelURL,

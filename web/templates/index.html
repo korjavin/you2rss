@@ -5,9 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT-Podcaster</title>
     <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
 </head>
 <body>
+<main class="container">
     <h1>YT-Podcaster</h1>
     <p>Welcome to YT-Podcaster. Your personal podcast feed for YouTube channels.</p>
+
+    <h2>Add Subscription</h2>
+    <form hx-post="/subscriptions" hx-target="#subscription-list" hx-swap="outerHTML">
+        <label for="url">YouTube Channel URL</label>
+        <input type="url" id="url" name="url" placeholder="https://www.youtube.com/channel/..." required>
+        <button type="submit">Subscribe</button>
+    </form>
+
+    <h2>Your Subscriptions</h2>
+    <div id="subscription-list" hx-get="/subscriptions" hx-trigger="load" hx-swap="outerHTML">
+        <!-- Subscription list will be loaded here -->
+        <p>Loading subscriptions...</p>
+    </div>
+</main>
 </body>
 </html>

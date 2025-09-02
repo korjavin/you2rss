@@ -1,0 +1,11 @@
+{{range .}}
+<article>
+    <header>{{.YoutubeChannelTitle}}</header>
+    <p><small>{{.YoutubeChannelID}}</small></p>
+    <footer>
+        <button class="secondary" hx-delete="/subscriptions/{{.ID}}" hx-target="closest article" hx-swap="outerHTML">
+            Delete
+        </button>
+    </footer>
+</article>
+{{end}}

@@ -1,8 +1,36 @@
-# Project Title: YT-Podcaster Service
+# YT-Podcaster Service
 
 ## Overview
 
 YT-Podcaster is a personal, on-demand podcasting service designed to convert public YouTube channel content into private, audio-only RSS feeds. The service provides a seamless user experience through a Telegram Mini App, allowing users to securely authenticate, manage a list of YouTube channel subscriptions, and receive a unique RSS feed URL compatible with any standard podcast client. The backend is engineered to automatically monitor subscribed channels for new videos, download them, extract the audio, and update the user's personal feed, effectively transforming any YouTube channel into a listenable podcast.
+
+## 🏠 Self-Hosting Encouraged
+
+**We strongly encourage self-hosting this project for maximum privacy and security.** When you host YT-Podcaster yourself, you maintain complete control over your data, subscriptions, and audio content. Your YouTube viewing preferences and podcast consumption habits remain entirely private, stored only on infrastructure you control.
+
+Self-hosting benefits:
+- **Complete Privacy**: Your subscription data never leaves your servers
+- **No Rate Limits**: Configure resource limits according to your needs
+- **Full Control**: Customize the service to your specific requirements
+- **Data Ownership**: Your audio files and metadata remain under your control
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Whether you're fixing bugs, adding features, improving documentation, or enhancing security, your help makes this project better for everyone.
+
+**How to contribute:**
+- Fork the repository
+- Create a feature branch (`git checkout -b feature/amazing-feature`)
+- Make your changes and add tests
+- Ensure all tests pass (`go test ./...`)
+- Submit a Pull Request
+
+**Areas where we especially welcome contributions:**
+- Additional podcast client compatibility
+- Performance optimizations
+- Security enhancements
+- Docker and deployment improvements
+- Documentation and guides
 
 ## Core Features
 
@@ -40,49 +68,90 @@ The technology stack is carefully selected to leverage specialized, best-in-clas
 
 ## Prerequisites
 
-The following software must be installed and available in the system's PATH on both development and production environments:
+### For Docker Deployment (Recommended)
+- Docker
+- Docker Compose
+- `golang-migrate/migrate` CLI tool (for database migrations)
 
+### For Development Setup
 - Go (Version 1.21 or later)
+- PostgreSQL (Version 12 or later) 
 - Redis (Version 4.0 or later)
 - yt-dlp (Latest version recommended)
-- ffmpeg and ffprobe (Required dependencies for yt-dlp to perform audio extraction and format conversion).
+- ffmpeg and ffprobe (Required dependencies for yt-dlp to perform audio extraction and format conversion)
 
 ## Configuration
 
-The service is configured using environment variables. Create a .env file in the project root by copying the .env.example file and populating it with your specific values.
+The service is configured using environment variables. Create a `.env` file in the project root by copying the `.env.example` file and populating it with your specific values.
+
+### Required Configuration
 
 - **TELEGRAM_BOT_TOKEN**: The secret token for your Telegram Bot, obtained from BotFather.
-- **DATABASE_URL**: The connection string for your PostgreSQL database (e.g., postgres://user:password@localhost:5432/yt_podcaster?sslmode=disable).
-- **REDIS_ADDR**: The address for the Redis server (e.g., localhost:6379).
-- **BASE_URL**: The public-facing base URL of the service (e.g., https://your-service.com). This is critical for generating correct URLs in the RSS feed.
-- **AUDIO_STORAGE_PATH**: The absolute local filesystem path where extracted audio files will be stored (e.g., /var/data/audio).
+- **DATABASE_URL**: The connection string for your PostgreSQL database (e.g., `postgres://user:password@localhost:5432/yt_podcaster?sslmode=disable`).
+- **REDIS_ADDR**: The address for the Redis server (e.g., `localhost:6379`).
+- **BASE_URL**: The public-facing base URL of the service (e.g., `https://your-service.com`). This is critical for generating correct URLs in the RSS feed.
+- **AUDIO_STORAGE_PATH**: The absolute local filesystem path where extracted audio files will be stored (e.g., `/var/data/audio`).
+
+### Optional Configuration
+
+- **PORT**: Server port (default: `8080`)
+- **RATE_LIMIT_PER_MINUTE**: API requests per minute per user (default: `100`)
+- **RATE_LIMIT_BURST**: Rate limiting burst size (default: `5`)
+- **MAX_SUBSCRIPTIONS_PER_USER**: Maximum subscriptions per user (default: `100`)
+- **PROCESS_VIDEO_TIMEOUT_MINUTES**: Video processing timeout (default: `15`)
+- **CHANNEL_INFO_TIMEOUT_SECONDS**: Channel info fetching timeout (default: `15`)
 
 ## Installation & Setup
 
-Clone the repository:
+### Quick Start with Docker (Recommended)
 
-```bash
-git clone https://github.com/your-username/yt-podcaster.git
-```
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/korjavin/you2rss.git
+   cd you2rss
+   ```
 
-Navigate to the project directory:
+2. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env file with your TELEGRAM_BOT_TOKEN and other settings
+   ```
 
-```bash
-cd yt-podcaster
-```
+3. Start all services:
+   ```bash
+   docker-compose up --build
+   ```
 
-Install Go dependencies:
+4. Run database migrations:
+   ```bash
+   # Wait for PostgreSQL to start, then run:
+   migrate -database "postgres://user:password@localhost:5432/yt_podcaster?sslmode=disable" -path migrations up
+   ```
 
-```bash
-go mod tidy
-```
+### Development Setup
 
-Set up your environment configuration:
+For local development without Docker:
 
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+1. Install prerequisites:
+   - Go 1.21+
+   - PostgreSQL
+   - Redis
+   - yt-dlp (`pip install yt-dlp`)
+   - ffmpeg
+
+2. Clone and configure:
+   ```bash
+   git clone https://github.com/korjavin/you2rss.git
+   cd you2rss
+   go mod tidy
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. Run database migrations:
+   ```bash
+   migrate -database "$DATABASE_URL" -path migrations up
+   ```
 
 ## Database Migrations
 
@@ -114,22 +183,95 @@ migrate -database "$DATABASE_URL" -path migrations down 1
 
 ## Running the Service
 
-This service consists of multiple long-running processes that must be run concurrently for the system to be fully operational.
+### With Docker (Recommended)
 
-- **Start the Web Server**: This process handles all user-facing HTTP requests, including the UI and API.
+All services are automatically started with docker-compose:
 
-  ```bash
-  go run ./cmd/server
-  ```
+```bash
+docker-compose up --build
+```
 
-- **Start the Asynq Worker**: This process executes the background jobs, such as downloading and processing videos.
+### Manual Development Mode
 
-  ```bash
-  go run ./cmd/worker
-  ```
+This service consists of multiple long-running processes that must be run concurrently for the system to be fully operational:
 
-- **Start the Asynq Scheduler**: This process enqueues periodic jobs to check for new videos from subscribed channels.
+```bash
+# Terminal 1: Web Server (handles UI and API)
+go run ./cmd/server
 
-  ```bash
-  go run ./cmd/scheduler
-  ```
+# Terminal 2: Worker (processes video downloads)
+go run ./cmd/worker
+
+# Terminal 3: Scheduler (periodic channel checks)
+go run ./cmd/scheduler
+```
+
+### Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test -v ./...
+
+# Run tests with race detection
+go test -race ./...
+```
+
+## Production Deployment
+
+The project includes automated CI/CD pipeline with GitHub Actions:
+
+1. **Automatic Deployment**: Push to `main` branch triggers Docker image build and deployment
+2. **Container Registry**: Images pushed to GitHub Container Registry (GHCR)
+3. **Production Template**: Use `docker-compose.prod.yml` for production deployment
+4. **Monitoring**: Each service logs its commit SHA for deployment tracking
+
+For production deployment, see `DEPLOYMENT.md` for detailed instructions.
+
+## Usage
+
+1. **Access the Web Interface**: Open your browser and navigate to `http://localhost:8080` (or your configured BASE_URL)
+
+2. **Telegram Mini App**: The service is designed to be used as a Telegram Mini App. Configure your Telegram bot and add the Mini App URL.
+
+3. **Add Subscriptions**: Use the web interface to add YouTube channel URLs to your subscription list.
+
+4. **Get Your RSS Feed**: Your personal RSS feed URL will be: `{BASE_URL}/rss/{your_rss_uuid}`
+
+5. **Add to Podcast Client**: Copy your RSS feed URL and add it to any podcast client (Apple Podcasts, Spotify, Pocket Casts, etc.)
+
+## Architecture
+
+The service consists of three main components:
+
+- **Server** (`cmd/server`): Serves the htmx frontend and handles API requests
+- **Worker** (`cmd/worker`): Processes background jobs for video downloading and audio extraction  
+- **Scheduler** (`cmd/scheduler`): Periodically checks subscribed channels for new content
+
+For detailed architecture information, see `architecture.md`.
+
+## Security Features
+
+- **Telegram Authentication**: Secure, passwordless authentication via Telegram Mini App initData
+- **UUID-based URLs**: Non-enumerable URLs for RSS feeds and audio files
+- **Rate Limiting**: Configurable per-user API rate limiting
+- **Input Validation**: Rigorous validation of YouTube URLs and user input
+- **Command Injection Prevention**: Safe execution of external tools (yt-dlp, ffmpeg)
+
+## License
+
+This project is open source. Please check the LICENSE file for details.
+
+## Support
+
+- **Documentation**: See `architecture.md` for technical details and `DEPLOYMENT.md` for deployment guide
+- **Issues**: Report bugs or request features via GitHub Issues
+- **Contributions**: See the Contributing section above for how to submit improvements
+
+---
+
+**Remember**: Self-hosting ensures your privacy and gives you full control over your podcast data. We encourage you to deploy your own instance rather than relying on hosted services.

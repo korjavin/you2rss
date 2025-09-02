@@ -16,7 +16,7 @@ The following diagram illustrates the flow of data and requests through the syst
 ```mermaid
 graph TD
     subgraph User
-        A[Telegram Client] --> B{Mini App (htmx)}
+        A[Telegram Client] --> B{Mini App htmx}
         H[Podcast Player]
     end
 

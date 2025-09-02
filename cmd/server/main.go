@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/hibiken/asynq"
 	"github.com/joho/godotenv"
+	"golang.org/x/time/rate"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/internal/handlers"
 	"yt-podcaster/internal/middleware"
@@ -62,11 +64,32 @@ func (a *App) registerHandlers() {
 	a.router.HandleFunc("/rss/{uuid}", h.GetRSSFeed).Methods("GET")
 	a.router.HandleFunc("/audio/{filename:.+}", h.ServeAudioFile).Methods("GET")
 
+	// Create rate limiter with configurable values
+	rateLimitPerMinute := 100.0 // default
+	if env := os.Getenv("RATE_LIMIT_PER_MINUTE"); env != "" {
+		if val, err := strconv.ParseFloat(env, 64); err == nil {
+			rateLimitPerMinute = val
+		}
+	}
+
+	rateLimitBurst := 5 // default
+	if env := os.Getenv("RATE_LIMIT_BURST"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			rateLimitBurst = val
+		}
+	}
+
+	rateLimiter := middleware.NewRateLimiterMiddleware(rate.Limit(rateLimitPerMinute/60.0), rateLimitBurst)
+
 	// Authenticated handlers
-	a.router.Handle("/", middleware.AuthMiddleware(http.HandlerFunc(h.GetRoot))).Methods("GET")
-	a.router.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
-	a.router.Handle("/subscriptions", middleware.AuthMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")
-	a.router.Handle("/subscriptions/{id}", middleware.AuthMiddleware(http.HandlerFunc(h.DeleteSubscription))).Methods("DELETE")
+	authMiddleware := func(next http.Handler) http.Handler {
+		return middleware.AuthMiddleware(rateLimiter.Middleware(next))
+	}
+
+	a.router.Handle("/", authMiddleware(http.HandlerFunc(h.ServeWebApp))).Methods("GET")
+	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
+	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")
+	a.router.Handle("/subscriptions/{id}", authMiddleware(http.HandlerFunc(h.DeleteSubscription))).Methods("DELETE")
 }
 
 func (a *App) Serve() {

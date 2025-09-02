@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
-	"regexp"
+	"os"
+	"os/exec"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"yt-podcaster/internal/db"
@@ -13,27 +17,27 @@ import (
 	"yt-podcaster/pkg/tasks"
 )
 
-var youtubeChannelIDRegex = regexp.MustCompile(`youtube\.com/channel/([a-zA-Z0-9_-]+)`)
+// execCommandContext can be mocked in tests
+var execCommandContext = exec.CommandContext
 
-func (h *Handlers) GetRoot(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value(middleware.UserContextKey).(*models.User)
-
-	subscriptions, err := db.GetSubscriptionsByUserID(user.ID)
-	if err != nil {
-		log.Printf("Error getting subscriptions: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+func getMaxSubscriptionsPerUser() int {
+	maxSubs := 100 // default as suggested in review
+	if env := os.Getenv("MAX_SUBSCRIPTIONS_PER_USER"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			maxSubs = val
+		}
 	}
+	return maxSubs
+}
 
-	data := map[string]interface{}{
-		"Subscriptions": subscriptions,
+func getChannelInfoTimeout() time.Duration {
+	timeout := 15 * time.Second // default as in original code
+	if env := os.Getenv("CHANNEL_INFO_TIMEOUT_SECONDS"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			timeout = time.Duration(val) * time.Second
+		}
 	}
-
-	err = h.templates.ExecuteTemplate(w, "index.html", data)
-	if err != nil {
-		log.Printf("Error executing template: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	return timeout
 }
 
 func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
@@ -56,23 +60,69 @@ func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(middleware.UserContextKey).(*models.User)
 
-	err := r.ParseForm()
+	// Check subscription limit
+	count, err := db.CountSubscriptionsByUserID(user.ID)
 	if err != nil {
+		log.Printf("Error counting subscriptions: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if count >= getMaxSubscriptionsPerUser() {
+		http.Error(w, "Subscription limit reached", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	channelURL := r.FormValue("url")
-	matches := youtubeChannelIDRegex.FindStringSubmatch(channelURL)
-	if len(matches) < 2 {
-		http.Error(w, "Invalid YouTube channel URL", http.StatusBadRequest)
+	if channelURL == "" {
+		http.Error(w, "URL is required", http.StatusBadRequest)
 		return
 	}
-	channelID := matches[1]
 
-	sub, err := db.AddSubscription(user.ID, channelID, channelID)
+	// Use yt-dlp to get channel ID and title
+	ctx, cancel := context.WithTimeout(r.Context(), getChannelInfoTimeout())
+	defer cancel()
+
+	cmd := execCommandContext(ctx, "yt-dlp",
+		"--print", "%(channel_id)s\n%(channel)s",
+		"--playlist-items", "0",
+		channelURL,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Error getting channel info from yt-dlp for URL '%s': %v\nOutput: %s", channelURL, err, string(output))
+		http.Error(w, "Invalid or unsupported YouTube URL", http.StatusBadRequest)
+		return
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) < 2 {
+		log.Printf("Unexpected output from yt-dlp for URL '%s': %s", channelURL, string(output))
+		http.Error(w, "Could not extract channel info from URL", http.StatusBadRequest)
+		return
+	}
+	channelID := lines[0]
+	channelTitle := lines[1]
+
+	if channelID == "" || channelTitle == "" || channelTitle == "NA" {
+		log.Printf("Could not extract valid channel info from yt-dlp for URL '%s': ID='%s', Title='%s'", channelURL, channelID, channelTitle)
+		http.Error(w, "Could not extract valid channel info from URL", http.StatusBadRequest)
+		return
+	}
+
+	sub, err := db.AddSubscription(user.ID, channelID, channelTitle)
 	if err != nil {
 		log.Printf("Error creating subscription: %v", err)
+		// Handle potential duplicate subscription error gracefully
+		if strings.Contains(err.Error(), "subscriptions_user_id_youtube_channel_id_key") {
+			http.Error(w, "You are already subscribed to this channel.", http.StatusConflict)
+			return
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -81,12 +131,10 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	task, err := tasks.NewCheckChannelTask(sub.ID)
 	if err != nil {
 		log.Printf("Error creating task: %v", err)
-		// Don't block the user, just log the error
 	} else {
 		_, err = h.asynqClient.Enqueue(task)
 		if err != nil {
 			log.Printf("Error enqueuing task: %v", err)
-			// Don't block the user, just log the error
 		}
 	}
 

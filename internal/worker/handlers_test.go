@@ -89,12 +89,10 @@ func TestHandleCheckChannelTask(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "video1", enqueuedPayload.YoutubeVideoID)
 
-
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
-
 
 func TestHandleProcessVideoTask(t *testing.T) {
 	// 1. Setup mock database
@@ -110,13 +108,21 @@ func TestHandleProcessVideoTask(t *testing.T) {
 
 	// 2. Setup mock execCommand and mock audio file
 	originalExecCommand := execCommand
-	defer func() { execCommand = originalExecCommand }()
-	execCommand = func(name string, arg ...string) *exec.Cmd {
+	originalExecCommandContext := execCommandContext
+	defer func() { 
+		execCommand = originalExecCommand
+		execCommandContext = originalExecCommandContext
+	}()
+	mockCommandFunc := func(name string, arg ...string) *exec.Cmd {
 		cs := []string{"-test.run=TestHelperProcess", "--", name}
 		cs = append(cs, arg...)
 		cmd := exec.Command(os.Args[0], cs...)
 		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "YT_DLP_ARGS=" + strings.Join(arg, " ")}
 		return cmd
+	}
+	execCommand = mockCommandFunc
+	execCommandContext = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return mockCommandFunc(name, arg...)
 	}
 
 	// Create a dummy audio file for os.Stat to work on
@@ -128,7 +134,6 @@ func TestHandleProcessVideoTask(t *testing.T) {
 	_, err = dummyFile.WriteString("dummy audio data")
 	assert.NoError(t, err)
 	dummyFile.Close()
-
 
 	// 3. Setup TaskHandler
 	handler := NewTaskHandler(nil) // No enqueuing in this handler
@@ -155,7 +160,6 @@ func TestHandleProcessVideoTask(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
-
 
 // TestHelperProcess isn't a real test. It's used as a helper for tests that
 // need to mock exec.Command.

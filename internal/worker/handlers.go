@@ -36,6 +36,7 @@ type YtDlpOutput struct {
 	Description string  `json:"description"`
 	Duration    float64 `json:"duration"`
 	Filename    string  `json:"_filename"`
+	UploadDate  string  `json:"upload_date"`
 }
 
 type TaskHandler struct {
@@ -112,7 +113,19 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 		return fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	err = db.UpdateEpisodeProcessingSuccess(episode.ID, ytDlpOutput.Title, ytDlpOutput.Description, audioPath, fileInfo.Size(), int(ytDlpOutput.Duration))
+	// Parse the upload date
+	var publishedAt time.Time
+	if ytDlpOutput.UploadDate != "" {
+		if t, err := time.Parse("20060102", ytDlpOutput.UploadDate); err == nil {
+			publishedAt = t
+		} else {
+			publishedAt = time.Now()
+		}
+	} else {
+		publishedAt = time.Now()
+	}
+
+	err = db.UpdateEpisodeProcessingSuccess(episode.ID, ytDlpOutput.Title, ytDlpOutput.Description, audioPath, fileInfo.Size(), int(ytDlpOutput.Duration), publishedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update episode processing success: %w", err)
 	}

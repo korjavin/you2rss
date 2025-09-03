@@ -148,7 +148,7 @@ func TestHandleProcessVideoTask(t *testing.T) {
 	mock.ExpectQuery("SELECT \\* FROM episodes WHERE youtube_video_id = \\$1").WithArgs("video1").WillReturnRows(epRows)
 
 	mock.ExpectExec("UPDATE episodes SET status = \\$1 WHERE id = \\$2").WithArgs(db.StatusProcessing, episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec("UPDATE episodes SET status = 'COMPLETED'").WithArgs("Test Title", "Test Description", "audio/test-uuid.m4a", int64(16), 123, episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE episodes SET status = 'COMPLETED'").WithArgs("Test Title", "Test Description", "audio/test-uuid.m4a", int64(16), 123, sqlmock.AnyArg(), episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// 6. Call the handler
 	err = handler.HandleProcessVideoTask(context.Background(), task)
@@ -182,6 +182,7 @@ func TestHelperProcess(t *testing.T) {
 			Description: "Test Description",
 			Duration:    123.45,
 			Filename:    "audio/test-uuid.m4a",
+			UploadDate:  "20230915",
 		}
 		jsonOutput, _ := json.Marshal(output)
 		fmt.Println(string(jsonOutput))

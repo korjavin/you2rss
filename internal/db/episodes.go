@@ -1,6 +1,7 @@
 package db
 
 import (
+	"time"
 	"yt-podcaster/internal/models"
 )
 
@@ -28,12 +29,12 @@ func UpdateEpisodeStatus(id int, status string) error {
 	return err
 }
 
-func UpdateEpisodeProcessingSuccess(id int, title string, description string, audioPath string, audioSize int64, duration int) error {
+func UpdateEpisodeProcessingSuccess(id int, title string, description string, audioPath string, audioSize int64, duration int, publishedAt time.Time) error {
 	_, err := DB.Exec(`
 		UPDATE episodes
-		SET status = 'COMPLETED', title = $1, description = $2, audio_path = $3, audio_size_bytes = $4, duration_seconds = $5
-		WHERE id = $6`,
-		title, description, audioPath, audioSize, duration, id)
+		SET status = 'COMPLETED', title = $1, description = $2, audio_path = $3, audio_size_bytes = $4, duration_seconds = $5, published_at = $6
+		WHERE id = $7`,
+		title, description, audioPath, audioSize, duration, publishedAt, id)
 	return err
 }
 

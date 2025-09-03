@@ -54,6 +54,11 @@ func NewApp(enqueuer tasks.TaskEnqueuer) *App {
 		audioStoragePath = "audio"
 	}
 
+	// Create audio storage directory if it doesn't exist
+	if err := os.MkdirAll(audioStoragePath, 0755); err != nil {
+		log.Fatalf("Failed to create audio storage directory: %v", err)
+	}
+
 	app.registerHandlers()
 
 	return app
@@ -90,6 +95,7 @@ func (a *App) registerHandlers() {
 	}
 
 	a.router.Handle("/", authMiddleware(http.HandlerFunc(h.ServeWebApp))).Methods("GET")
+	a.router.Handle("/auth", authMiddleware(http.HandlerFunc(h.PostAuth))).Methods("POST")
 	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
 	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")
 	a.router.Handle("/subscriptions/{id}", authMiddleware(http.HandlerFunc(h.DeleteSubscription))).Methods("DELETE")

@@ -1,5 +1,5 @@
 # Stage 1: Build the Go applications
-FROM golang:1.21-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 # Add build argument for commit SHA
 ARG COMMIT_SHA=unknown
@@ -31,7 +31,7 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     ffmpeg \
-    && pip3 install --no-cache-dir yt-dlp
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp
 
 # Copy the built binaries from the builder stage
 COPY --from=builder /app/bin/server .

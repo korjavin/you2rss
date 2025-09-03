@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT-Podcaster</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
 </head>
@@ -25,5 +26,25 @@
         <p>Loading subscriptions...</p>
     </div>
 </main>
+
+<script>
+// Initialize Telegram Web App
+window.Telegram.WebApp.ready();
+
+// Configure htmx to include Telegram auth header
+document.addEventListener('htmx:configRequest', function(evt) {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+        evt.detail.headers['Authorization'] = 'tma ' + window.Telegram.WebApp.initData;
+    }
+});
+
+// Set up theme
+if (window.Telegram.WebApp.colorScheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+}
+
+// Expand the web app to full height
+window.Telegram.WebApp.expand();
+</script>
 </body>
 </html>

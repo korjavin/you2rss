@@ -94,7 +94,7 @@ func (a *App) registerHandlers() {
 		return middleware.AuthMiddleware(rateLimiter.Middleware(next))
 	}
 
-	a.router.Handle("/", authMiddleware(http.HandlerFunc(h.ServeWebApp))).Methods("GET")
+	a.router.Handle("/", http.HandlerFunc(h.ServeWebApp)).Methods("GET")
 	a.router.Handle("/auth", authMiddleware(http.HandlerFunc(h.PostAuth))).Methods("POST")
 	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.GetSubscriptions))).Methods("GET")
 	a.router.Handle("/subscriptions", authMiddleware(http.HandlerFunc(h.PostSubscription))).Methods("POST")

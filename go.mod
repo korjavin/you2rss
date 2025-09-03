@@ -1,6 +1,6 @@
 module yt-podcaster
 
-go 1.24.3
+go 1.22
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -12,6 +12,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
 	github.com/telegram-mini-apps/init-data-golang v1.5.0
+	golang.org/x/time v0.8.0
 )
 
 require (
@@ -25,7 +26,6 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

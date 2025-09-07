@@ -66,19 +66,6 @@ The technology stack is carefully selected to leverage specialized, best-in-clas
 
 - **Telegram Auth Helper**: init-data-golang - The recommended Go library for securely parsing and validating Telegram initData, providing a robust and tested implementation of the validation algorithm.
 
-## Prerequisites
-
-### For Docker Deployment (Recommended)
-- Docker
-- Docker Compose
-- `golang-migrate/migrate` CLI tool (for database migrations)
-
-### For Development Setup
-- Go (Version 1.21 or later)
-- PostgreSQL (Version 12 or later) 
-- Redis (Version 4.0 or later)
-- yt-dlp (Latest version recommended)
-- ffmpeg and ffprobe (Required dependencies for yt-dlp to perform audio extraction and format conversion)
 
 ## Configuration
 
@@ -101,85 +88,9 @@ The service is configured using environment variables. Create a `.env` file in t
 - **PROCESS_VIDEO_TIMEOUT_MINUTES**: Video processing timeout (default: `15`)
 - **CHANNEL_INFO_TIMEOUT_SECONDS**: Channel info fetching timeout (default: `15`)
 
-## Installation & Setup
+## Installation and Deployment
 
-### Quick Start with Docker (Recommended)
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/korjavin/you2rss.git
-   cd you2rss
-   ```
-
-2. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env file with your TELEGRAM_BOT_TOKEN and other settings
-   ```
-
-3. Start all services:
-   ```bash
-   docker-compose up --build
-   ```
-
-4. Run database migrations:
-   ```bash
-   # Wait for PostgreSQL to start, then run:
-   migrate -database "postgres://user:password@localhost:5432/yt_podcaster?sslmode=disable" -path migrations up
-   ```
-
-### Development Setup
-
-For local development without Docker:
-
-1. Install prerequisites:
-   - Go 1.21+
-   - PostgreSQL
-   - Redis
-   - yt-dlp (`pip install yt-dlp`)
-   - ffmpeg
-
-2. Clone and configure:
-   ```bash
-   git clone https://github.com/korjavin/you2rss.git
-   cd you2rss
-   go mod tidy
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-3. Run database migrations:
-   ```bash
-   migrate -database "$DATABASE_URL" -path migrations up
-   ```
-
-## Database Migrations
-
-This project uses `golang-migrate/migrate` to manage database schema changes. The migration files are located in the `/migrations` directory.
-
-### Installing the Migration Tool
-
-You can install the `migrate` CLI tool with the following command:
-
-```bash
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-```
-
-This will install the tool with support for PostgreSQL. Make sure your `$GOPATH/bin` directory is in your system's `PATH`.
-
-### Running Migrations
-
-To apply all pending "up" migrations to your database, run the following command. Make sure your `DATABASE_URL` in the `.env` file is correctly configured.
-
-```bash
-migrate -database "$DATABASE_URL" -path migrations up
-```
-
-To roll back the last applied migration, use:
-
-```bash
-migrate -database "$DATABASE_URL" -path migrations down 1
-```
+For detailed instructions on how to set up, configure, and deploy the service, please see the comprehensive **[Deployment Guide](DEPLOYMENT.md)**.
 
 ## Running the Service
 
@@ -193,17 +104,17 @@ docker-compose up --build
 
 ### Manual Development Mode
 
-This service consists of multiple long-running processes that must be run concurrently for the system to be fully operational:
+This service consists of multiple long-running processes that must be run concurrently for the system to be fully operational. Run each command in a separate terminal:
 
 ```bash
 # Terminal 1: Web Server (handles UI and API)
-go run ./cmd/server
+go run ./cmd/server/main.go
 
 # Terminal 2: Worker (processes video downloads)
-go run ./cmd/worker
+go run ./cmd/worker/main.go
 
 # Terminal 3: Scheduler (periodic channel checks)
-go run ./cmd/scheduler
+go run ./cmd/scheduler/main.go
 ```
 
 ### Testing
@@ -223,14 +134,7 @@ go test -race ./...
 
 ## Production Deployment
 
-The project includes automated CI/CD pipeline with GitHub Actions:
-
-1. **Automatic Deployment**: Push to `main` branch triggers Docker image build and deployment
-2. **Container Registry**: Images pushed to GitHub Container Registry (GHCR)
-3. **Production Template**: Use `docker-compose.prod.yml` for production deployment
-4. **Monitoring**: Each service logs its commit SHA for deployment tracking
-
-For production deployment, see `DEPLOYMENT.md` for detailed instructions.
+For production deployment, see the **[Deployment Guide](DEPLOYMENT.md)** for detailed instructions. The project also includes an automated CI/CD pipeline with GitHub Actions.
 
 ## Usage
 
@@ -264,7 +168,7 @@ For detailed architecture information, see `architecture.md`.
 
 ## License
 
-This project is open source. Please check the LICENSE file for details.
+This project is open source and distributed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Support
 

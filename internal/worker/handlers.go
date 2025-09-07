@@ -30,6 +30,16 @@ func getProcessVideoTimeout() time.Duration {
 	return timeout
 }
 
+func getCheckChannelTimeout() time.Duration {
+	timeout := 2 * time.Minute // default timeout for channel checking
+	if env := os.Getenv("CHECK_CHANNEL_TIMEOUT_MINUTES"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			timeout = time.Duration(val) * time.Minute
+		}
+	}
+	return timeout
+}
+
 type YtDlpOutput struct {
 	ID          string  `json:"id"`
 	Title       string  `json:"title"`
@@ -175,7 +185,11 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	}
 
 	// Use yt-dlp to get the latest videos from the channel
-	cmd := execCommand("yt-dlp",
+	// Create a context with timeout to prevent hanging
+	ctx, cancel := context.WithTimeout(ctx, getCheckChannelTimeout())
+	defer cancel()
+	
+	cmd := execCommandContext(ctx, "yt-dlp",
 		"--flat-playlist",
 		"-j",
 		fmt.Sprintf("https://www.youtube.com/channel/%s", subscription.YoutubeChannelID),

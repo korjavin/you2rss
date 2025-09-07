@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,26 @@ func getChannelInfoTimeout() time.Duration {
 		}
 	}
 	return timeout
+}
+
+// validateYouTubeURL validates that the URL is a proper YouTube channel URL
+// to prevent SSRF attacks by ensuring only YouTube domains are accessed
+func validateYouTubeURL(url string) bool {
+	// Regular expressions for valid YouTube channel and user URLs
+	patterns := []string{
+		`^https://(?:www\.)?youtube\.com/channel/[a-zA-Z0-9_-]+(?:/.*)?$`,
+		`^https://(?:www\.)?youtube\.com/@[a-zA-Z0-9_.-]+(?:/.*)?$`,
+		`^https://(?:www\.)?youtube\.com/user/[a-zA-Z0-9_.-]+(?:/.*)?$`,
+		`^https://(?:www\.)?youtube\.com/c/[a-zA-Z0-9_.-]+(?:/.*)?$`,
+	}
+	
+	for _, pattern := range patterns {
+		if matched, _ := regexp.MatchString(pattern, url); matched {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +101,12 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	channelURL := r.FormValue("url")
 	if channelURL == "" {
 		http.Error(w, "URL is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate URL to prevent SSRF attacks
+	if !validateYouTubeURL(channelURL) {
+		http.Error(w, "Invalid YouTube URL format", http.StatusBadRequest)
 		return
 	}
 

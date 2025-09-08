@@ -19,22 +19,14 @@ import (
 var validInitData = "query_id=AAHdF614AAAAAN0Xrhom_pA&user=%7B%22id%22%3A123%2C%22first_name%22%3A%22Test%22%2C%22last_name%22%3A%22User%22%2C%22username%22%3A%22testuser%22%2C%22language_code%22%3A%22en%22%7D&auth_date=1672531200&hash=e51bca5855f98822011a62a939aa68e9be25b5502195f128038d8c364273872f"
 
 func TestGetRootHandler(t *testing.T) {
-	middleware.SetTestToken("dummy-token")
-	defer middleware.SetTestToken("")
-	
 	app := NewApp(nil) // Using nil as we don't enqueue in this handler
 	_, mock := test.NewMockDB(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Authorization", "tma "+validInitData)
 	rr := httptest.NewRecorder()
 
-	user := &models.User{ID: 1, TelegramID: 123, TelegramUsername: "testuser", CreatedAt: time.Now()}
-	userRows := sqlmock.NewRows([]string{"id", "telegram_id", "telegram_username", "rss_uuid", "created_at", "updated_at"}).
-		AddRow(user.ID, user.TelegramID, user.TelegramUsername, "some-uuid", user.CreatedAt, user.CreatedAt)
-	mock.ExpectQuery(`INSERT INTO users`).WithArgs(int64(123), "testuser").WillReturnRows(userRows)
-
-	// Note: The htmx subscription loading won't happen in tests since JavaScript doesn't execute
+	// The root handler doesn't require authentication - it just serves the HTML page
+	// No database queries expected
 	
 	app.router.ServeHTTP(rr, req)
 
@@ -99,9 +91,9 @@ func TestDeleteSubscriptionHandler(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	user := &models.User{ID: 1, TelegramID: 123, TelegramUsername: "testuser", CreatedAt: time.Now()}
-	userRows := sqlmock.NewRows([]string{"id", "telegram_id", "telegram_username", "rss_uuid", "created_at", "updated_at"}).
-		AddRow(user.ID, user.TelegramID, user.TelegramUsername, "some-uuid", user.CreatedAt, user.CreatedAt)
-	mock.ExpectQuery(`INSERT INTO users`).WithArgs(int64(123), "testuser").WillReturnRows(userRows)
+	userRows := sqlmock.NewRows([]string{"id", "telegram_username", "rss_uuid", "created_at", "updated_at"}).
+		AddRow(user.ID, user.TelegramUsername, "some-uuid", user.CreatedAt, user.CreatedAt)
+	mock.ExpectQuery(`INSERT INTO users \(id, telegram_username\) VALUES \(\$1, \$2\) ON CONFLICT \(id\) DO UPDATE SET telegram_username = EXCLUDED\.telegram_username, updated_at = NOW\(\) RETURNING`).WithArgs(int64(123), "testuser").WillReturnRows(userRows)
 
 	mock.ExpectExec("DELETE FROM subscriptions WHERE id = \\$1 AND user_id = \\$2").WithArgs(1, user.ID).WillReturnResult(sqlmock.NewResult(1, 1))
 

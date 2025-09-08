@@ -42,15 +42,23 @@ func TestHandleCheckChannelTask(t *testing.T) {
 	db.DB = sqlxDB
 	defer func() { db.DB = originalDB }()
 
-	// 2. Setup mock execCommand
+	// 2. Setup mock execCommand and execCommandContext
 	originalExecCommand := execCommand
-	defer func() { execCommand = originalExecCommand }()
-	execCommand = func(name string, arg ...string) *exec.Cmd {
+	originalExecCommandContext := execCommandContext
+	defer func() { 
+		execCommand = originalExecCommand
+		execCommandContext = originalExecCommandContext
+	}()
+	mockCommandFunc := func(name string, arg ...string) *exec.Cmd {
 		cs := []string{"-test.run=TestHelperProcess", "--", name}
 		cs = append(cs, arg...)
 		cmd := exec.Command(os.Args[0], cs...)
 		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "YT_DLP_ARGS=" + strings.Join(arg, " ")}
 		return cmd
+	}
+	execCommand = mockCommandFunc
+	execCommandContext = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+		return mockCommandFunc(name, arg...)
 	}
 
 	// 3. Setup mock task enqueuer

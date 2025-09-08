@@ -112,6 +112,16 @@ setTimeout(() => {
     }
     debugLog('HTMX loaded: ' + (typeof htmx !== 'undefined'));
     debugLog('Form element: ' + !!document.querySelector('form[hx-post]'));
+    
+    // Add form submit listener to see if form is actually submitting
+    const form = document.querySelector('form[hx-post]');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            debugLog('Native form submit event fired!');
+            debugLog('HTMX will intercept: ' + (htmx && htmx.config));
+        });
+        debugLog('Form submit listener added');
+    }
 }, 1000);
 </script>
 </body>

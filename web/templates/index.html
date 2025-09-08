@@ -14,10 +14,13 @@
     <p>Welcome to YT-Podcaster. Your personal podcast feed for YouTube channels.</p>
 
     <h2>Add Subscription</h2>
+    <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px;">
+        Debug info will appear here...
+    </div>
     <form hx-post="/subscriptions" hx-target="#subscription-list" hx-swap="outerHTML">
         <label for="url">YouTube Channel URL</label>
         <input type="url" id="url" name="url" placeholder="https://www.youtube.com/channel/..." required>
-        <button type="submit">Subscribe</button>
+        <button type="submit" onclick="debugLog('Subscribe button clicked')">Subscribe</button>
     </form>
 
     <h2>Your Subscriptions</h2>
@@ -28,44 +31,55 @@
 </main>
 
 <script>
+// Debug logging function
+function debugLog(message) {
+    const debugDiv = document.getElementById('debug-info');
+    const timestamp = new Date().toLocaleTimeString();
+    debugDiv.innerHTML += `<div>${timestamp}: ${message}</div>`;
+    debugDiv.scrollTop = debugDiv.scrollHeight;
+}
+
 // Initialize Telegram Web App
-console.log('Initializing Telegram Web App...');
+debugLog('Initializing Telegram Web App...');
 window.Telegram.WebApp.ready();
 
 // Debug Telegram Web App state
-console.log('Telegram WebApp available:', !!window.Telegram?.WebApp);
-console.log('InitData available:', !!window.Telegram?.WebApp?.initData);
-console.log('InitData length:', window.Telegram?.WebApp?.initData?.length || 0);
+debugLog('Telegram WebApp available: ' + !!window.Telegram?.WebApp);
+debugLog('InitData available: ' + !!window.Telegram?.WebApp?.initData);
+debugLog('InitData length: ' + (window.Telegram?.WebApp?.initData?.length || 0));
 
 // Configure htmx to include Telegram auth header
 document.addEventListener('htmx:configRequest', function(evt) {
-    console.log('HTMX configRequest event:', evt.detail.verb, evt.detail.path);
+    debugLog('HTMX configRequest: ' + evt.detail.verb + ' ' + evt.detail.path);
     
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         evt.detail.headers['Authorization'] = 'tma ' + window.Telegram.WebApp.initData;
-        console.log('Added Authorization header with initData length:', window.Telegram.WebApp.initData.length);
-        console.log('InitData first 100 chars:', window.Telegram.WebApp.initData.substring(0, 100));
+        debugLog('Added Authorization header with initData length: ' + window.Telegram.WebApp.initData.length);
+        debugLog('InitData first 100 chars: ' + window.Telegram.WebApp.initData.substring(0, 100));
     } else {
-        console.error('Telegram initData not available!');
-        console.log('Telegram:', !!window.Telegram);
-        console.log('WebApp:', !!window.Telegram?.WebApp);
-        console.log('initData:', window.Telegram?.WebApp?.initData);
+        debugLog('ERROR: Telegram initData not available!');
+        debugLog('Telegram: ' + !!window.Telegram);
+        debugLog('WebApp: ' + !!window.Telegram?.WebApp);
+        debugLog('initData: ' + window.Telegram?.WebApp?.initData);
     }
 });
 
 // Add error handling for HTMX requests
 document.addEventListener('htmx:responseError', function(evt) {
-    console.error('HTMX response error:', evt.detail);
-    alert('Request failed: ' + evt.detail.xhr.status + ' ' + evt.detail.xhr.statusText);
+    debugLog('HTMX response error: ' + evt.detail.xhr.status + ' ' + evt.detail.xhr.statusText);
+    debugLog('Response: ' + evt.detail.xhr.responseText);
 });
 
 document.addEventListener('htmx:sendError', function(evt) {
-    console.error('HTMX send error:', evt.detail);
-    alert('Request failed to send');
+    debugLog('HTMX send error: ' + JSON.stringify(evt.detail));
 });
 
 document.addEventListener('htmx:afterRequest', function(evt) {
-    console.log('HTMX request completed:', evt.detail.xhr.status, evt.detail.pathInfo.requestPath);
+    debugLog('HTMX request completed: ' + evt.detail.xhr.status + ' ' + evt.detail.pathInfo.requestPath);
+});
+
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    debugLog('HTMX beforeRequest: ' + evt.detail.verb + ' ' + evt.detail.path);
 });
 
 // Set up theme
@@ -80,10 +94,12 @@ if (window.Telegram?.WebApp?.expand) {
 
 // Additional debugging
 setTimeout(() => {
-    console.log('Delayed check - InitData available:', !!window.Telegram?.WebApp?.initData);
+    debugLog('Delayed check - InitData available: ' + !!window.Telegram?.WebApp?.initData);
     if (window.Telegram?.WebApp?.initData) {
-        console.log('InitData sample:', window.Telegram.WebApp.initData.substring(0, 50) + '...');
+        debugLog('InitData sample: ' + window.Telegram.WebApp.initData.substring(0, 50) + '...');
     }
+    debugLog('HTMX loaded: ' + (typeof htmx !== 'undefined'));
+    debugLog('Form element: ' + !!document.querySelector('form[hx-post]'));
 }, 1000);
 </script>
 </body>

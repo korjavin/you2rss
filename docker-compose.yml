@@ -23,6 +23,31 @@ services:
       - traefik-network
     restart: unless-stopped
 
+  you2rss-migrate:
+    # The image tag will be replaced by the GitHub Actions workflow  
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: you2rss-migrate
+    depends_on:
+      - you2rss-postgres
+    networks:
+      - you2rss-internal
+    environment:
+      DATABASE_URL: "postgres://you2rss:you2rss_password@you2rss-postgres:5432/yt_podcaster?sslmode=disable"
+    command: >
+      sh -c "
+        apk add --no-cache postgresql-client &&
+        until pg_isready -h you2rss-postgres -p 5432 -U you2rss; do
+          echo 'Waiting for postgres...'
+          sleep 2
+        done &&
+        for file in /app/migrations/*.up.sql; do
+          echo \"Running migration: $$file\"
+          psql $$DATABASE_URL -f \"$$file\"
+        done &&
+        echo 'Migrations completed'
+      "
+    restart: "no"
+
   you2rss-server:
     # The image tag will be replaced by the GitHub Actions workflow
     image: ghcr.io/korjavin/you2rss:latest
@@ -31,6 +56,7 @@ services:
     depends_on:
       - you2rss-postgres
       - you2rss-redis
+      - you2rss-migrate
     networks:
       - you2rss-internal
       - traefik-network
@@ -66,6 +92,7 @@ services:
     depends_on:
       - you2rss-postgres
       - you2rss-redis
+      - you2rss-migrate
     networks:
       - you2rss-internal
     environment:

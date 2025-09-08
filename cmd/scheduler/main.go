@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"yt-podcaster/internal/db"
 	"yt-podcaster/pkg/tasks"
 
 	"github.com/hibiken/asynq"
@@ -18,8 +17,6 @@ func main() {
 	if err != nil {
 		log.Println("Error loading .env file")
 	}
-
-	db.InitDB()
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {

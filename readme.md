@@ -105,12 +105,26 @@ docker-compose -f docker-compose.dev.yml up --build
 
 ### With Docker (Production)
 
-For production deployment using pre-built images:
+For production deployment using pre-built images from GHCR:
 
 ```bash
-# Use production compose file with GHCR images
-docker-compose up
+# Set required environment variables and deploy
+export TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+export BASE_URL="https://your-domain.com"
+export DOMAIN="your-domain.com"
+
+# Deploy with included PostgreSQL and Redis
+docker-compose up -d
 ```
+
+The production setup includes:
+- PostgreSQL database (internal)
+- Redis cache (internal) 
+- All application services
+- Traefik reverse proxy labels
+- Automatic database setup
+
+Only 3 environment variables are required - everything else has sensible defaults.
 
 ### Manual Development Mode
 

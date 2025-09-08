@@ -1,19 +1,53 @@
 version: "3.8"
 
 services:
+  you2rss-postgres:
+    image: postgres:13-alpine
+    container_name: you2rss-postgres
+    environment:
+      POSTGRES_USER: you2rss
+      POSTGRES_PASSWORD: you2rss_password
+      POSTGRES_DB: yt_podcaster
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - you2rss-internal
+      - traefik-network
+    restart: unless-stopped
+
+  you2rss-redis:
+    image: redis:6-alpine
+    container_name: you2rss-redis
+    networks:
+      - you2rss-internal
+      - traefik-network
+    restart: unless-stopped
+
   you2rss-server:
     # The image tag will be replaced by the GitHub Actions workflow
     image: ghcr.io/korjavin/you2rss:latest
     container_name: you2rss-server
     command: ./server
+    depends_on:
+      - you2rss-postgres
+      - you2rss-redis
     networks:
+      - you2rss-internal
       - traefik-network
     environment:
-      DATABASE_URL: "${DATABASE_URL}"
-      REDIS_ADDR: "${REDIS_ADDR}"
+      DATABASE_URL: "postgres://you2rss:you2rss_password@you2rss-postgres:5432/yt_podcaster?sslmode=disable"
+      REDIS_ADDR: "you2rss-redis:6379"
       TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
       AUDIO_STORAGE_PATH: "/app/audio"
       BASE_URL: "${BASE_URL}"
+      # Optional settings with sensible defaults
+      PORT: "8080"
+      RATE_LIMIT_PER_MINUTE: "100"
+      RATE_LIMIT_BURST: "5"
+      MAX_SUBSCRIPTIONS_PER_USER: "100"
+      PROCESS_VIDEO_TIMEOUT_MINUTES: "15"
+      CHANNEL_INFO_TIMEOUT_SECONDS: "15"
+      CHECK_CHANNEL_TIMEOUT_MINUTES: "2"
     volumes:
       - audio_data:/app/audio
     labels:
@@ -29,12 +63,18 @@ services:
     image: ghcr.io/korjavin/you2rss:latest
     container_name: you2rss-worker
     command: ./worker
+    depends_on:
+      - you2rss-postgres
+      - you2rss-redis
     networks:
-      - traefik-network
+      - you2rss-internal
     environment:
-      DATABASE_URL: "${DATABASE_URL}"
-      REDIS_ADDR: "${REDIS_ADDR}"
+      DATABASE_URL: "postgres://you2rss:you2rss_password@you2rss-postgres:5432/yt_podcaster?sslmode=disable"
+      REDIS_ADDR: "you2rss-redis:6379"
       AUDIO_STORAGE_PATH: "/app/audio"
+      # Optional settings with sensible defaults
+      PROCESS_VIDEO_TIMEOUT_MINUTES: "15"
+      CHECK_CHANNEL_TIMEOUT_MINUTES: "2"
     volumes:
       - audio_data:/app/audio
     restart: unless-stopped
@@ -44,15 +84,19 @@ services:
     image: ghcr.io/korjavin/you2rss:latest
     container_name: you2rss-scheduler
     command: ./scheduler
+    depends_on:
+      - you2rss-redis
     networks:
-      - traefik-network
+      - you2rss-internal
     environment:
-      REDIS_ADDR: "${REDIS_ADDR}"
+      REDIS_ADDR: "you2rss-redis:6379"
     restart: unless-stopped
 
 volumes:
   audio_data:
+  postgres_data:
 
 networks:
+  you2rss-internal:
   traefik-network:
     external: true

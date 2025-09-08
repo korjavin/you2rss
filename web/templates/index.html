@@ -44,6 +44,7 @@ document.addEventListener('htmx:configRequest', function(evt) {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         evt.detail.headers['Authorization'] = 'tma ' + window.Telegram.WebApp.initData;
         console.log('Added Authorization header with initData length:', window.Telegram.WebApp.initData.length);
+        console.log('InitData first 100 chars:', window.Telegram.WebApp.initData.substring(0, 100));
     } else {
         console.error('Telegram initData not available!');
         console.log('Telegram:', !!window.Telegram);

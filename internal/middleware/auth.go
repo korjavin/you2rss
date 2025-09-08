@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -44,6 +45,18 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		initData := strings.TrimPrefix(authHeader, "tma ")
+		log.Printf("AuthMiddleware: InitData length: %d, first 100 chars: %s", len(initData), func() string {
+			if len(initData) > 100 {
+				return initData[:100] + "..."
+			}
+			return initData
+		}())
+		
+		// Try URL decoding in case the initData got encoded
+		if decodedInitData, err := url.QueryUnescape(initData); err == nil && decodedInitData != initData {
+			log.Printf("AuthMiddleware: Detected URL-encoded initData, using decoded version")
+			initData = decodedInitData
+		}
 
 		// Skip validation in test mode
 		if getTelegramBotToken() == "dummy-token" {

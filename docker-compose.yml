@@ -99,4 +99,5 @@ volumes:
 networks:
   you2rss-internal:
   traefik-network:
-    external: true
+    name: ${NETWORK_NAME:-traefik-network}
+    external: ${NETWORK_EXTERNAL:-true}

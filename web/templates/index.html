@@ -49,16 +49,6 @@ function debugFormState() {
     debugLog('URL value: "' + urlInput.value + '"');
     debugLog('URL valid: ' + urlInput.checkValidity());
     debugLog('URL validation message: "' + urlInput.validationMessage + '"');
-    
-    // Try manual HTMX trigger after short delay
-    setTimeout(() => {
-        debugLog('Attempting manual HTMX trigger...');
-        if (typeof htmx !== 'undefined') {
-            htmx.trigger(form, 'submit');
-        } else {
-            debugLog('ERROR: htmx not available for manual trigger');
-        }
-    }, 100);
 }
 
 // Initialize Telegram Web App

@@ -29,22 +29,61 @@
 
 <script>
 // Initialize Telegram Web App
+console.log('Initializing Telegram Web App...');
 window.Telegram.WebApp.ready();
+
+// Debug Telegram Web App state
+console.log('Telegram WebApp available:', !!window.Telegram?.WebApp);
+console.log('InitData available:', !!window.Telegram?.WebApp?.initData);
+console.log('InitData length:', window.Telegram?.WebApp?.initData?.length || 0);
 
 // Configure htmx to include Telegram auth header
 document.addEventListener('htmx:configRequest', function(evt) {
+    console.log('HTMX configRequest event:', evt.detail.verb, evt.detail.path);
+    
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         evt.detail.headers['Authorization'] = 'tma ' + window.Telegram.WebApp.initData;
+        console.log('Added Authorization header with initData length:', window.Telegram.WebApp.initData.length);
+    } else {
+        console.error('Telegram initData not available!');
+        console.log('Telegram:', !!window.Telegram);
+        console.log('WebApp:', !!window.Telegram?.WebApp);
+        console.log('initData:', window.Telegram?.WebApp?.initData);
     }
 });
 
+// Add error handling for HTMX requests
+document.addEventListener('htmx:responseError', function(evt) {
+    console.error('HTMX response error:', evt.detail);
+    alert('Request failed: ' + evt.detail.xhr.status + ' ' + evt.detail.xhr.statusText);
+});
+
+document.addEventListener('htmx:sendError', function(evt) {
+    console.error('HTMX send error:', evt.detail);
+    alert('Request failed to send');
+});
+
+document.addEventListener('htmx:afterRequest', function(evt) {
+    console.log('HTMX request completed:', evt.detail.xhr.status, evt.detail.pathInfo.requestPath);
+});
+
 // Set up theme
-if (window.Telegram.WebApp.colorScheme === 'dark') {
+if (window.Telegram?.WebApp?.colorScheme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
 }
 
 // Expand the web app to full height
-window.Telegram.WebApp.expand();
+if (window.Telegram?.WebApp?.expand) {
+    window.Telegram.WebApp.expand();
+}
+
+// Additional debugging
+setTimeout(() => {
+    console.log('Delayed check - InitData available:', !!window.Telegram?.WebApp?.initData);
+    if (window.Telegram?.WebApp?.initData) {
+        console.log('InitData sample:', window.Telegram.WebApp.initData.substring(0, 50) + '...');
+    }
+}, 1000);
 </script>
 </body>
 </html>

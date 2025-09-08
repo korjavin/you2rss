@@ -79,7 +79,15 @@ func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
+	log.Printf("PostSubscription called - Method: %s, URL: %s, Content-Type: %s", r.Method, r.URL.String(), r.Header.Get("Content-Type"))
+	
 	user := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if user == nil {
+		log.Printf("PostSubscription: No user in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	log.Printf("PostSubscription: User ID %d (%s) requesting subscription", user.ID, user.TelegramUsername)
 
 	// Check subscription limit
 	count, err := db.CountSubscriptionsByUserID(user.ID)

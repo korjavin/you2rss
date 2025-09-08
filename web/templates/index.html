@@ -20,7 +20,7 @@
     <form hx-post="/subscriptions" hx-target="#subscription-list" hx-swap="outerHTML">
         <label for="url">YouTube Channel URL</label>
         <input type="url" id="url" name="url" placeholder="https://www.youtube.com/channel/..." required>
-        <button type="submit" onclick="debugLog('Subscribe button clicked')">Subscribe</button>
+        <button type="submit" onclick="debugFormState()">Subscribe</button>
     </form>
 
     <h2>Your Subscriptions</h2>
@@ -37,6 +37,18 @@ function debugLog(message) {
     const timestamp = new Date().toLocaleTimeString();
     debugDiv.innerHTML += `<div>${timestamp}: ${message}</div>`;
     debugDiv.scrollTop = debugDiv.scrollHeight;
+}
+
+// Debug form state
+function debugFormState() {
+    debugLog('Subscribe button clicked');
+    const form = document.querySelector('form[hx-post]');
+    const urlInput = document.getElementById('url');
+    
+    debugLog('Form valid: ' + form.checkValidity());
+    debugLog('URL value: "' + urlInput.value + '"');
+    debugLog('URL valid: ' + urlInput.checkValidity());
+    debugLog('URL validation message: "' + urlInput.validationMessage + '"');
 }
 
 // Initialize Telegram Web App

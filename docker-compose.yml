@@ -1,60 +1,58 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  postgres:
-    image: postgres:13-alpine
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: yt_podcaster
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:6-alpine
-    ports:
-      - "6379:6379"
-
-  server:
-    build: .
+  you2rss-server:
+    # The image tag will be replaced by the GitHub Actions workflow
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: you2rss-server
     command: ./server
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
-      - redis
+    networks:
+      - traefik-network
     environment:
-      DATABASE_URL: "postgres://user:password@postgres:5432/yt_podcaster?sslmode=disable"
-      REDIS_ADDR: "redis:6379"
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      DATABASE_URL: "${DATABASE_URL}"
+      REDIS_ADDR: "${REDIS_ADDR}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
       AUDIO_STORAGE_PATH: "/app/audio"
-      BASE_URL: "http://localhost:8080"
+      BASE_URL: "${BASE_URL}"
     volumes:
       - audio_data:/app/audio
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.you2rss.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.you2rss.entrypoints=websecure"
+      - "traefik.http.routers.you2rss.tls.certresolver=myresolver"
+      - "traefik.http.services.you2rss.loadbalancer.server.port=8080"
+    restart: unless-stopped
 
-  worker:
-    build: .
+  you2rss-worker:
+    # The image tag will be replaced by the GitHub Actions workflow
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: you2rss-worker
     command: ./worker
-    depends_on:
-      - postgres
-      - redis
+    networks:
+      - traefik-network
     environment:
-      DATABASE_URL: "postgres://user:password@postgres:5432/yt_podcaster?sslmode=disable"
-      REDIS_ADDR: "redis:6379"
+      DATABASE_URL: "${DATABASE_URL}"
+      REDIS_ADDR: "${REDIS_ADDR}"
       AUDIO_STORAGE_PATH: "/app/audio"
     volumes:
       - audio_data:/app/audio
+    restart: unless-stopped
 
-  scheduler:
-    build: .
+  you2rss-scheduler:
+    # The image tag will be replaced by the GitHub Actions workflow
+    image: ghcr.io/korjavin/you2rss:latest
+    container_name: you2rss-scheduler
     command: ./scheduler
-    depends_on:
-      - redis
+    networks:
+      - traefik-network
     environment:
-      REDIS_ADDR: "redis:6379"
+      REDIS_ADDR: "${REDIS_ADDR}"
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
   audio_data:
+
+networks:
+  traefik-network:
+    external: true

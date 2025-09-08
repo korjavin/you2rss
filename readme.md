@@ -94,12 +94,22 @@ For detailed instructions on how to set up, configure, and deploy the service, p
 
 ## Running the Service
 
-### With Docker (Recommended)
+### With Docker (Development)
 
-All services are automatically started with docker-compose:
+For development with local database and redis:
 
 ```bash
-docker-compose up --build
+# Start all services with local database and redis
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+### With Docker (Production)
+
+For production deployment using pre-built images:
+
+```bash
+# Use production compose file with GHCR images
+docker-compose up
 ```
 
 ### Manual Development Mode

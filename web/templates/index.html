@@ -17,15 +17,14 @@
     <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px;">
         Debug info will appear here...
     </div>
-    <form hx-post="/subscriptions" hx-target="#subscription-list" hx-swap="outerHTML" hx-trigger="submit">
+    <form id="subscription-form">
         <label for="url">YouTube Channel URL</label>
         <input type="url" id="url" name="url" placeholder="https://www.youtube.com/channel/..." required>
         <button type="submit">Subscribe</button>
     </form>
 
     <h2>Your Subscriptions</h2>
-    <div id="subscription-list" hx-get="/subscriptions" hx-trigger="load" hx-swap="outerHTML">
-        <!-- Subscription list will be loaded here -->
+    <div id="subscription-list">
         <p>Loading subscriptions...</p>
     </div>
 </main>
@@ -60,39 +59,84 @@ debugLog('Telegram WebApp available: ' + !!window.Telegram?.WebApp);
 debugLog('InitData available: ' + !!window.Telegram?.WebApp?.initData);
 debugLog('InitData length: ' + (window.Telegram?.WebApp?.initData?.length || 0));
 
-// Configure htmx to include Telegram auth header
-document.addEventListener('htmx:configRequest', function(evt) {
-    debugLog('HTMX configRequest: ' + evt.detail.verb + ' ' + evt.detail.path);
+// Vanilla JS functions
+function makeAuthenticatedRequest(method, url, data = null) {
+    debugLog('Making ' + method + ' request to ' + url);
     
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
-        evt.detail.headers['Authorization'] = 'tma ' + window.Telegram.WebApp.initData;
-        debugLog('Added Authorization header with initData length: ' + window.Telegram.WebApp.initData.length);
-        debugLog('InitData first 100 chars: ' + window.Telegram.WebApp.initData.substring(0, 100));
-    } else {
+    if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
         debugLog('ERROR: Telegram initData not available!');
-        debugLog('Telegram: ' + !!window.Telegram);
-        debugLog('WebApp: ' + !!window.Telegram?.WebApp);
-        debugLog('initData: ' + window.Telegram?.WebApp?.initData);
+        return Promise.reject('No auth data');
     }
-});
+    
+    const headers = {
+        'Authorization': 'tma ' + window.Telegram.WebApp.initData
+    };
+    
+    if (data instanceof FormData) {
+        // Let browser set Content-Type for FormData
+    } else if (data) {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
+    
+    debugLog('Auth header length: ' + window.Telegram.WebApp.initData.length);
+    
+    return fetch(url, {
+        method: method,
+        headers: headers,
+        body: data
+    }).then(response => {
+        debugLog('Response: ' + response.status + ' ' + response.statusText);
+        return response;
+    });
+}
 
-// Add error handling for HTMX requests
-document.addEventListener('htmx:responseError', function(evt) {
-    debugLog('HTMX response error: ' + evt.detail.xhr.status + ' ' + evt.detail.xhr.statusText);
-    debugLog('Response: ' + evt.detail.xhr.responseText);
-});
+function loadSubscriptions() {
+    debugLog('Loading subscriptions...');
+    makeAuthenticatedRequest('GET', '/subscriptions')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('subscription-list').innerHTML = html;
+            debugLog('Subscriptions loaded successfully');
+        })
+        .catch(error => {
+            debugLog('Error loading subscriptions: ' + error);
+            document.getElementById('subscription-list').innerHTML = '<p>Error loading subscriptions</p>';
+        });
+}
 
-document.addEventListener('htmx:sendError', function(evt) {
-    debugLog('HTMX send error: ' + JSON.stringify(evt.detail));
-});
-
-document.addEventListener('htmx:afterRequest', function(evt) {
-    debugLog('HTMX request completed: ' + evt.detail.xhr.status + ' ' + evt.detail.pathInfo.requestPath);
-});
-
-document.addEventListener('htmx:beforeRequest', function(evt) {
-    debugLog('HTMX beforeRequest: ' + evt.detail.verb + ' ' + evt.detail.path);
-});
+function handleSubscriptionSubmit(event) {
+    event.preventDefault();
+    debugLog('Form submit intercepted by vanilla JS');
+    
+    const form = document.getElementById('subscription-form');
+    const formData = new FormData(form);
+    const urlValue = formData.get('url');
+    
+    debugLog('Submitting URL: ' + urlValue);
+    
+    if (!form.checkValidity()) {
+        debugLog('Form validation failed');
+        return;
+    }
+    
+    makeAuthenticatedRequest('POST', '/subscriptions', formData)
+        .then(response => {
+            if (response.ok) {
+                debugLog('Subscription created successfully');
+                form.reset();
+                loadSubscriptions(); // Reload the subscription list
+            } else {
+                return response.text().then(text => {
+                    debugLog('Subscription failed: ' + response.status + ' - ' + text);
+                    alert('Subscription failed: ' + text);
+                });
+            }
+        })
+        .catch(error => {
+            debugLog('Subscription error: ' + error);
+            alert('Subscription failed: ' + error);
+        });
+}
 
 // Set up theme
 if (window.Telegram?.WebApp?.colorScheme === 'dark') {
@@ -104,24 +148,23 @@ if (window.Telegram?.WebApp?.expand) {
     window.Telegram.WebApp.expand();
 }
 
-// Additional debugging
+// Initialize vanilla JS handlers
 setTimeout(() => {
-    debugLog('Delayed check - InitData available: ' + !!window.Telegram?.WebApp?.initData);
-    if (window.Telegram?.WebApp?.initData) {
-        debugLog('InitData sample: ' + window.Telegram.WebApp.initData.substring(0, 50) + '...');
-    }
-    debugLog('HTMX loaded: ' + (typeof htmx !== 'undefined'));
-    debugLog('Form element: ' + !!document.querySelector('form[hx-post]'));
+    debugLog('Setting up vanilla JS handlers...');
     
-    // Add form submit listener to see if form is actually submitting
-    const form = document.querySelector('form[hx-post]');
+    // Load subscriptions on page load
+    loadSubscriptions();
+    
+    // Set up form submit handler
+    const form = document.getElementById('subscription-form');
     if (form) {
-        form.addEventListener('submit', function(e) {
-            debugLog('Native form submit event fired!');
-            debugLog('HTMX will intercept: ' + (htmx && htmx.config));
-        });
-        debugLog('Form submit listener added');
+        form.addEventListener('submit', handleSubscriptionSubmit);
+        debugLog('Form submit handler attached');
+    } else {
+        debugLog('ERROR: Could not find subscription form');
     }
+    
+    debugLog('Vanilla JS setup complete');
 }, 1000);
 </script>
 </body>

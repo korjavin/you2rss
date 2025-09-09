@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -134,12 +135,12 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	log.Printf("Running yt-dlp command for URL: %s", channelURL)
+	// Try to get channel info by extracting from the channel page directly
 	cmd := execCommandContext(ctx, "yt-dlp",
-		"--print", "%(channel_id)s\n%(channel)s",
-		"--playlist-items", "0",
+		"--dump-json",
+		"--playlist-items", "1:1", 
 		"--no-warnings",
-		"--quiet", 
-		"--no-check-certificate",
+		"--quiet",
 		channelURL,
 	)
 
@@ -153,41 +154,41 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clean the output by removing debug lines and empty lines
+	// Parse JSON output to extract channel info
 	outputStr := strings.TrimSpace(string(output))
-	lines := []string{}
-	for _, line := range strings.Split(outputStr, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "[") && !strings.HasPrefix(line, "Loaded ") {
-			lines = append(lines, line)
-		}
-	}
-	
-	log.Printf("Cleaned yt-dlp output lines: %v", lines)
-	
-	if len(lines) < 2 {
-		log.Printf("Insufficient channel info from yt-dlp for URL '%s'. Lines found: %d", channelURL, len(lines))
-		// Try alternative extraction method
-		log.Printf("Attempting fallback channel extraction...")
-		fallbackCmd := execCommandContext(ctx, "yt-dlp", 
-			"--dump-json", 
-			"--playlist-items", "0",
-			"--no-warnings",
-			channelURL,
-		)
-		fallbackOutput, fallbackErr := fallbackCmd.CombinedOutput()
-		if fallbackErr == nil {
-			output := string(fallbackOutput)
-			if len(output) > 200 {
-				output = output[:200] + "..."
-			}
-			log.Printf("Fallback JSON output: %s", output)
-		}
+	if outputStr == "" {
+		log.Printf("Empty JSON output from yt-dlp for URL '%s'", channelURL)
 		http.Error(w, "Could not extract channel info from URL", http.StatusBadRequest)
 		return
 	}
-	channelID := lines[0]
-	channelTitle := lines[1]
+	
+	// Parse the first line of JSON (in case there are multiple)
+	jsonLines := strings.Split(outputStr, "\n")
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonLines[0]), &jsonData); err != nil {
+		truncated := outputStr
+		if len(truncated) > 200 {
+			truncated = truncated[:200] + "..."
+		}
+		log.Printf("Failed to parse JSON from yt-dlp: %v. Raw output: %s", err, truncated)
+		http.Error(w, "Could not parse channel info from URL", http.StatusBadRequest)
+		return
+	}
+	
+	// Extract channel ID and title from JSON
+	channelID, channelIDExists := jsonData["channel_id"].(string)
+	channelTitle, channelTitleExists := jsonData["uploader"].(string)
+	if !channelTitleExists {
+		channelTitle, channelTitleExists = jsonData["channel"].(string)
+	}
+	
+	log.Printf("Extracted from JSON - Channel ID: %s, Title: %s", channelID, channelTitle)
+	
+	if !channelIDExists || !channelTitleExists || channelID == "" || channelTitle == "" {
+		log.Printf("Missing channel info in JSON for URL '%s'. ID exists: %v, Title exists: %v", channelURL, channelIDExists, channelTitleExists)
+		http.Error(w, "Could not extract valid channel info from URL", http.StatusBadRequest)
+		return
+	}
 
 	if channelID == "" || channelTitle == "" || channelTitle == "NA" {
 		log.Printf("Could not extract valid channel info from yt-dlp for URL '%s': ID='%s', Title='%s'", channelURL, channelID, channelTitle)

@@ -102,41 +102,69 @@ func extractChannelInfo(ctx context.Context, channelURL string) (channelID, chan
 	
 	html := string(body)
 	
+	// Log HTML snippet for debugging (first 500 chars)
+	htmlSnippet := html
+	if len(htmlSnippet) > 500 {
+		htmlSnippet = htmlSnippet[:500] + "..."
+	}
+	log.Printf("HTML snippet for debugging: %s", htmlSnippet)
+	
 	// Extract channel ID from various possible patterns
 	channelIDPatterns := []string{
 		`"channelId":"([^"]+)"`,
-		`"browse_id":"([^"]+)"`,
+		`"browse_id":"([^"]+)"`,  
 		`<link rel="canonical" href="https://www\.youtube\.com/channel/([^"]+)">`,
-		`channel/([A-Za-z0-9_-]+)`,
+		`<link rel="canonical" href="https://www\.youtube\.com/channel/([^"?]+)`,
+		`channel/([A-Za-z0-9_-]{24})`, // YouTube channel IDs are exactly 24 characters
+		`"externalId":"([^"]+)"`,
+		`data-channel-external-id="([^"]+)"`,
 	}
 	
-	for _, pattern := range channelIDPatterns {
+	log.Printf("Searching for channel ID...")
+	for i, pattern := range channelIDPatterns {
 		re := regexp.MustCompile(pattern)
 		matches := re.FindStringSubmatch(html)
-		if len(matches) > 1 && strings.HasPrefix(matches[1], "UC") {
-			channelID = matches[1]
-			break
+		log.Printf("Pattern %d (%s): matches=%v", i+1, pattern, len(matches) > 1)
+		if len(matches) > 1 {
+			candidate := matches[1]
+			log.Printf("Found candidate channel ID: %s", candidate)
+			// Check if it looks like a valid YouTube channel ID (starts with UC and is 24 chars)
+			if strings.HasPrefix(candidate, "UC") && len(candidate) == 24 {
+				channelID = candidate
+				log.Printf("Valid channel ID found: %s", channelID)
+				break
+			}
 		}
 	}
 	
 	// Extract channel title
 	titlePatterns := []string{
-		`<title>([^-]+) - YouTube</title>`,
+		`<title>([^-\|]+) - YouTube</title>`,
+		`<title>([^-\|]+)\s*-\s*YouTube</title>`,
 		`"title":"([^"]+)"`,
-		`<meta property="og:title" content="([^"]+)">`,
+		`<meta property="og:title" content="([^"]+)"`,
+		`<meta name="title" content="([^"]+)"`,
 	}
 	
-	for _, pattern := range titlePatterns {
+	log.Printf("Searching for channel title...")
+	for i, pattern := range titlePatterns {
 		re := regexp.MustCompile(pattern)
 		matches := re.FindStringSubmatch(html)
+		log.Printf("Title pattern %d: matches=%v", i+1, len(matches) > 1)
 		if len(matches) > 1 {
-			channelTitle = strings.TrimSpace(matches[1])
-			break
+			candidate := strings.TrimSpace(matches[1])
+			if candidate != "" && candidate != "YouTube" {
+				channelTitle = candidate
+				log.Printf("Channel title found: %s", channelTitle)
+				break
+			}
 		}
 	}
 	
+	log.Printf("Final extraction results - ID: '%s', Title: '%s'", channelID, channelTitle)
+	
 	if channelID == "" || channelTitle == "" {
-		return "", "", fmt.Errorf("could not extract channel info from HTML")
+		return "", "", fmt.Errorf("could not extract channel info from HTML (ID found: %v, Title found: %v)", channelID != "", channelTitle != "")
 	}
 	
 	return channelID, channelTitle, nil

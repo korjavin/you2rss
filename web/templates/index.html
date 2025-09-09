@@ -73,7 +73,9 @@ function makeAuthenticatedRequest(method, url, data = null) {
     };
     
     if (data instanceof FormData) {
-        // Let browser set Content-Type for FormData
+        // Convert FormData to URL-encoded string for Go server compatibility
+        data = new URLSearchParams(data).toString();
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
     } else if (data) {
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
     }

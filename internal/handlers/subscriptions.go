@@ -2,7 +2,8 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -62,6 +63,85 @@ func validateYouTubeURL(url string) bool {
 	return false
 }
 
+// extractChannelInfo extracts channel ID and title from YouTube channel URL using web scraping
+func extractChannelInfo(ctx context.Context, channelURL string) (channelID, channelTitle string, err error) {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	
+	// Create request with context
+	req, err := http.NewRequestWithContext(ctx, "GET", channelURL, nil)
+	if err != nil {
+		return "", "", err
+	}
+	
+	// Add realistic headers to avoid bot detection
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
+	req.Header.Set("Connection", "keep-alive")
+	
+	// Make the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != 200 {
+		return "", "", err
+	}
+	
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", err
+	}
+	
+	html := string(body)
+	
+	// Extract channel ID from various possible patterns
+	channelIDPatterns := []string{
+		`"channelId":"([^"]+)"`,
+		`"browse_id":"([^"]+)"`,
+		`<link rel="canonical" href="https://www\.youtube\.com/channel/([^"]+)">`,
+		`channel/([A-Za-z0-9_-]+)`,
+	}
+	
+	for _, pattern := range channelIDPatterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(html)
+		if len(matches) > 1 && strings.HasPrefix(matches[1], "UC") {
+			channelID = matches[1]
+			break
+		}
+	}
+	
+	// Extract channel title
+	titlePatterns := []string{
+		`<title>([^-]+) - YouTube</title>`,
+		`"title":"([^"]+)"`,
+		`<meta property="og:title" content="([^"]+)">`,
+	}
+	
+	for _, pattern := range titlePatterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(html)
+		if len(matches) > 1 {
+			channelTitle = strings.TrimSpace(matches[1])
+			break
+		}
+	}
+	
+	if channelID == "" || channelTitle == "" {
+		return "", "", fmt.Errorf("could not extract channel info from HTML")
+	}
+	
+	return channelID, channelTitle, nil
+}
+
 func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(middleware.UserContextKey).(*models.User)
 
@@ -119,76 +199,19 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if yt-dlp is installed and working
-	log.Printf("Checking yt-dlp installation...")
-	versionCmd := execCommandContext(context.Background(), "yt-dlp", "--version")
-	versionOutput, versionErr := versionCmd.CombinedOutput()
-	if versionErr != nil {
-		log.Printf("yt-dlp not found or not working: %v\nOutput: %s", versionErr, string(versionOutput))
-		http.Error(w, "Video processing service unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	log.Printf("yt-dlp version: %s", strings.TrimSpace(string(versionOutput)))
-
-	// Use yt-dlp to get channel ID and title
+	// Extract channel ID and title using web scraping (more reliable than yt-dlp)
 	ctx, cancel := context.WithTimeout(r.Context(), getChannelInfoTimeout())
 	defer cancel()
 
-	log.Printf("Running yt-dlp command for URL: %s", channelURL)
-	// Try to get channel info by extracting from the channel page directly
-	cmd := execCommandContext(ctx, "yt-dlp",
-		"--dump-json",
-		"--playlist-items", "1:1", 
-		"--no-warnings",
-		"--quiet",
-		channelURL,
-	)
-
-	output, err := cmd.CombinedOutput()
-	log.Printf("yt-dlp raw output (len=%d): '%s'", len(output), string(output))
-	log.Printf("yt-dlp command error: %v", err)
-	
+	log.Printf("Extracting channel info from URL: %s", channelURL)
+	channelID, channelTitle, err := extractChannelInfo(ctx, channelURL)
 	if err != nil {
-		log.Printf("Error getting channel info from yt-dlp for URL '%s': %v\nOutput: %s", channelURL, err, string(output))
-		http.Error(w, "Invalid or unsupported YouTube URL", http.StatusBadRequest)
-		return
-	}
-
-	// Parse JSON output to extract channel info
-	outputStr := strings.TrimSpace(string(output))
-	if outputStr == "" {
-		log.Printf("Empty JSON output from yt-dlp for URL '%s'", channelURL)
+		log.Printf("Error extracting channel info from URL '%s': %v", channelURL, err)
 		http.Error(w, "Could not extract channel info from URL", http.StatusBadRequest)
 		return
 	}
 	
-	// Parse the first line of JSON (in case there are multiple)
-	jsonLines := strings.Split(outputStr, "\n")
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonLines[0]), &jsonData); err != nil {
-		truncated := outputStr
-		if len(truncated) > 200 {
-			truncated = truncated[:200] + "..."
-		}
-		log.Printf("Failed to parse JSON from yt-dlp: %v. Raw output: %s", err, truncated)
-		http.Error(w, "Could not parse channel info from URL", http.StatusBadRequest)
-		return
-	}
-	
-	// Extract channel ID and title from JSON
-	channelID, channelIDExists := jsonData["channel_id"].(string)
-	channelTitle, channelTitleExists := jsonData["uploader"].(string)
-	if !channelTitleExists {
-		channelTitle, channelTitleExists = jsonData["channel"].(string)
-	}
-	
-	log.Printf("Extracted from JSON - Channel ID: %s, Title: %s", channelID, channelTitle)
-	
-	if !channelIDExists || !channelTitleExists || channelID == "" || channelTitle == "" {
-		log.Printf("Missing channel info in JSON for URL '%s'. ID exists: %v, Title exists: %v", channelURL, channelIDExists, channelTitleExists)
-		http.Error(w, "Could not extract valid channel info from URL", http.StatusBadRequest)
-		return
-	}
+	log.Printf("Extracted channel info - ID: %s, Title: %s", channelID, channelTitle)
 
 	if channelID == "" || channelTitle == "" || channelTitle == "NA" {
 		log.Printf("Could not extract valid channel info from yt-dlp for URL '%s': ID='%s', Title='%s'", channelURL, channelID, channelTitle)

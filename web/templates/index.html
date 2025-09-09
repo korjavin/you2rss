@@ -119,10 +119,7 @@ function handleSubscriptionSubmit(event) {
         return;
     }
     
-    // Convert FormData to URLSearchParams for proper form encoding
-    const urlEncodedData = new URLSearchParams(formData);
-    
-    makeAuthenticatedRequest('POST', '/subscriptions', urlEncodedData)
+    makeAuthenticatedRequest('POST', '/subscriptions', formData)
         .then(response => {
             if (response.ok) {
                 debugLog('Subscription created successfully');

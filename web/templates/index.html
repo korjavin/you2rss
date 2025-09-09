@@ -93,10 +93,19 @@ function makeAuthenticatedRequest(method, url, data = null) {
 function loadSubscriptions() {
     debugLog('Loading subscriptions...');
     makeAuthenticatedRequest('GET', '/subscriptions')
-        .then(response => response.text())
+        .then(response => {
+            if (response.status === 401) {
+                debugLog('Authentication expired - need to refresh bot');
+                document.getElementById('subscription-list').innerHTML = '<p style="color: red;">Authentication expired. Please close and reopen this bot to refresh your session.</p>';
+                return;
+            }
+            return response.text();
+        })
         .then(html => {
-            document.getElementById('subscription-list').innerHTML = html;
-            debugLog('Subscriptions loaded successfully');
+            if (html) {
+                document.getElementById('subscription-list').innerHTML = html;
+                debugLog('Subscriptions loaded successfully');
+            }
         })
         .catch(error => {
             debugLog('Error loading subscriptions: ' + error);
@@ -125,6 +134,9 @@ function handleSubscriptionSubmit(event) {
                 debugLog('Subscription created successfully');
                 form.reset();
                 loadSubscriptions(); // Reload the subscription list
+            } else if (response.status === 401) {
+                debugLog('Authentication expired - need to refresh bot');
+                alert('Authentication expired. Please close and reopen this bot to refresh your session.');
             } else {
                 return response.text().then(text => {
                     debugLog('Subscription failed: ' + response.status + ' - ' + text);

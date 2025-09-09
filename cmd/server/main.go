@@ -44,9 +44,22 @@ func NewApp(enqueuer tasks.TaskEnqueuer) *App {
 		app.asynqClient = asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
 	}
 
-	// Load templates
+	// Load templates with error handling instead of panicking
 	templatesPath := filepath.Join(test.ProjectRoot(), "web", "templates", "*.html")
-	app.templates = template.Must(template.ParseGlob(templatesPath))
+	templates, err := template.ParseGlob(templatesPath)
+	if err != nil {
+		log.Printf("Warning: Template parsing error: %v", err)
+		log.Printf("Creating minimal fallback template...")
+		// Create a minimal fallback template that won't crash
+		app.templates = template.Must(template.New("fallback").Parse(`
+			<html><body>
+				<h1>Service Temporarily Unavailable</h1>
+				<p>Template parsing error. Please check the logs and fix the templates.</p>
+			</body></html>
+		`))
+	} else {
+		app.templates = templates
+	}
 
 	// Set audio storage path
 	audioStoragePath = os.Getenv("AUDIO_STORAGE_PATH")

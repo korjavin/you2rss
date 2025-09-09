@@ -136,9 +136,10 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Running yt-dlp command for URL: %s", channelURL)
 	cmd := execCommandContext(ctx, "yt-dlp",
 		"--print", "%(channel_id)s\n%(channel)s",
-		"--playlist-end", "0",
+		"--playlist-items", "0",
 		"--no-warnings",
-		"--quiet",
+		"--quiet", 
+		"--no-check-certificate",
 		channelURL,
 	)
 
@@ -170,7 +171,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Attempting fallback channel extraction...")
 		fallbackCmd := execCommandContext(ctx, "yt-dlp", 
 			"--dump-json", 
-			"--playlist-end", "0",
+			"--playlist-items", "0",
 			"--no-warnings",
 			channelURL,
 		)

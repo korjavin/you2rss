@@ -118,17 +118,34 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if yt-dlp is installed and working
+	log.Printf("Checking yt-dlp installation...")
+	versionCmd := execCommandContext(context.Background(), "yt-dlp", "--version")
+	versionOutput, versionErr := versionCmd.CombinedOutput()
+	if versionErr != nil {
+		log.Printf("yt-dlp not found or not working: %v\nOutput: %s", versionErr, string(versionOutput))
+		http.Error(w, "Video processing service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	log.Printf("yt-dlp version: %s", strings.TrimSpace(string(versionOutput)))
+
 	// Use yt-dlp to get channel ID and title
 	ctx, cancel := context.WithTimeout(r.Context(), getChannelInfoTimeout())
 	defer cancel()
 
+	log.Printf("Running yt-dlp command for URL: %s", channelURL)
 	cmd := execCommandContext(ctx, "yt-dlp",
 		"--print", "%(channel_id)s\n%(channel)s",
 		"--playlist-items", "0",
+		"--no-warnings",
+		"--verbose",
 		channelURL,
 	)
 
 	output, err := cmd.CombinedOutput()
+	log.Printf("yt-dlp raw output (len=%d): '%s'", len(output), string(output))
+	log.Printf("yt-dlp command error: %v", err)
+	
 	if err != nil {
 		log.Printf("Error getting channel info from yt-dlp for URL '%s': %v\nOutput: %s", channelURL, err, string(output))
 		http.Error(w, "Invalid or unsupported YouTube URL", http.StatusBadRequest)

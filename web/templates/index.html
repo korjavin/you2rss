@@ -79,6 +79,8 @@ function makeAuthenticatedRequest(method, url, data = null) {
     }
     
     debugLog('Auth header length: ' + window.Telegram.WebApp.initData.length);
+    debugLog('InitData contains "hash": ' + window.Telegram.WebApp.initData.includes('hash='));
+    debugLog('InitData first 200 chars: ' + window.Telegram.WebApp.initData.substring(0, 200));
     
     return fetch(url, {
         method: method,

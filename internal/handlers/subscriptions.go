@@ -136,9 +136,9 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Running yt-dlp command for URL: %s", channelURL)
 	cmd := execCommandContext(ctx, "yt-dlp",
 		"--print", "%(channel_id)s\n%(channel)s",
-		"--playlist-items", "0",
+		"--playlist-end", "0",
 		"--no-warnings",
-		"--verbose",
+		"--quiet",
 		channelURL,
 	)
 
@@ -152,9 +152,36 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	// Clean the output by removing debug lines and empty lines
+	outputStr := strings.TrimSpace(string(output))
+	lines := []string{}
+	for _, line := range strings.Split(outputStr, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "[") && !strings.HasPrefix(line, "Loaded ") {
+			lines = append(lines, line)
+		}
+	}
+	
+	log.Printf("Cleaned yt-dlp output lines: %v", lines)
+	
 	if len(lines) < 2 {
-		log.Printf("Unexpected output from yt-dlp for URL '%s': %s", channelURL, string(output))
+		log.Printf("Insufficient channel info from yt-dlp for URL '%s'. Lines found: %d", channelURL, len(lines))
+		// Try alternative extraction method
+		log.Printf("Attempting fallback channel extraction...")
+		fallbackCmd := execCommandContext(ctx, "yt-dlp", 
+			"--dump-json", 
+			"--playlist-end", "0",
+			"--no-warnings",
+			channelURL,
+		)
+		fallbackOutput, fallbackErr := fallbackCmd.CombinedOutput()
+		if fallbackErr == nil {
+			output := string(fallbackOutput)
+			if len(output) > 200 {
+				output = output[:200] + "..."
+			}
+			log.Printf("Fallback JSON output: %s", output)
+		}
 		http.Error(w, "Could not extract channel info from URL", http.StatusBadRequest)
 		return
 	}

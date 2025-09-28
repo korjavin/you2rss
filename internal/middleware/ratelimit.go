@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"sync"
 
-	"golang.org/x/time/rate"
 	"yt-podcaster/internal/models"
+
+	"golang.org/x/time/rate"
 )
 
 // RateLimiterMiddleware holds the rate limiters for each user.
@@ -30,7 +31,7 @@ func NewRateLimiterMiddleware(r rate.Limit, b int) *RateLimiterMiddleware {
 // Middleware is the actual middleware handler.
 func (rl *RateLimiterMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(UserContextKey).(*models.User)
+		user, ok := r.Context().Value(models.UserContextKey).(*models.User)
 		if !ok {
 			// This should not happen if AuthMiddleware is used before this.
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

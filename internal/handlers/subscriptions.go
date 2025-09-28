@@ -66,42 +66,74 @@ func validateYouTubeURL(url string) bool {
 
 // extractChannelInfo extracts channel ID and title from YouTube channel URL using web scraping
 func extractChannelInfo(ctx context.Context, channelURL string) (channelID, channelTitle string, err error) {
-	// Create HTTP client with timeout
+	// Create HTTP client with timeout and redirect handling
 	client := &http.Client{
 		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Allow up to 10 redirects
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
 	}
 
-	// Create request with context
-	req, err := http.NewRequestWithContext(ctx, "GET", channelURL, nil)
-	if err != nil {
-		return "", "", err
+	// Try different URL formats to bypass consent pages
+	urlsToTry := []string{
+		channelURL,
+		channelURL + "?hl=en&gl=US", // Force English locale and US region
 	}
 
-	// Add realistic headers to avoid bot detection
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
-	req.Header.Set("Accept-Encoding", "gzip, deflate")
-	req.Header.Set("Connection", "keep-alive")
+	var html string
+	for _, url := range urlsToTry {
+		// Create request with context
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			continue
+		}
 
-	// Make the request
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", err
+		// Add realistic headers to avoid bot detection
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Accept-Encoding", "identity") // Don't use compression to avoid issues
+		req.Header.Set("Connection", "keep-alive")
+		req.Header.Set("Cache-Control", "no-cache")
+		req.Header.Set("Pragma", "no-cache")
+
+		// Make the request
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("HTTP request failed for %s: %v", url, err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			log.Printf("HTTP %d for URL: %s", resp.StatusCode, url)
+			continue
+		}
+
+		// Read response body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Failed to read response body: %v", err)
+			continue
+		}
+
+		html = string(body)
+
+		// Check if we got actual YouTube content (not a consent page)
+		if strings.Contains(html, "youtube.com") && !strings.Contains(html, "consent.youtube.com") {
+			break
+		}
+
+		log.Printf("Got consent page or invalid response for %s, trying next URL", url)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return "", "", err
+	if html == "" {
+		return "", "", fmt.Errorf("could not fetch valid YouTube page content")
 	}
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", "", err
-	}
-
-	html := string(body)
 
 	// Log HTML snippet for debugging (first 500 chars)
 	htmlSnippet := html

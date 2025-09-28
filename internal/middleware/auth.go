@@ -109,7 +109,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		log.Printf("AuthMiddleware: Successfully authenticated user %d", user.ID)
-		ctx := context.WithValue(r.Context(), UserContextKey, user)
+		ctx := context.WithValue(r.Context(), models.UserContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

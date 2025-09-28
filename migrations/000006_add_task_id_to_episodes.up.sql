@@ -1,0 +1,2 @@
+
+ALTER TABLE episodes ADD COLUMN task_id VARCHAR(255);

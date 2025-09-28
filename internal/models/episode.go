@@ -15,4 +15,5 @@ type Episode struct {
 	DurationSeconds *int       `db:"duration_seconds"`
 	Status          string     `db:"status"`
 	CreatedAt       time.Time  `db:"created_at"`
+	TaskID          *string    `db:"task_id"`
 }

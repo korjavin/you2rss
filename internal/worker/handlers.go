@@ -367,7 +367,7 @@ func (h *TaskHandler) HandleCheckAllSubscriptionsTask(ctx context.Context, t *as
 			continue
 		}
 
-		_, err = h.asynqClient.Enqueue(task, asynq.Queue("high"))
+		_, err = h.asynqClient.Enqueue(task)
 		if err != nil {
 			log.Printf("failed to enqueue check channel task for subscription %d: %v", sub.ID, err)
 			continue
@@ -391,6 +391,12 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 		return fmt.Errorf("failed to get subscription by id: %w", err)
 	}
 
+	// Determine if this is a new channel
+	isNewChannel, err := db.IsNewChannel(subscription.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check if channel is new: %w", err)
+	}
+
 	// Use yt-dlp to get the latest videos from the channel
 	// Create a context with timeout to prevent hanging
 	ctx, cancel := context.WithTimeout(ctx, getCheckChannelTimeout())
@@ -407,10 +413,14 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	channelURL := fmt.Sprintf("https://www.youtube.com/channel/%s/videos", subscription.YoutubeChannelID)
 
 	// Build yt-dlp command arguments
+	playlistEnd := "20"
+	if isNewChannel {
+		playlistEnd = "50"
+	}
 	args := []string{
 		"--flat-playlist",
 		"-j",
-		"--playlist-end", "20", // Limit to 20 most recent videos
+		"--playlist-end", playlistEnd,
 		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		"--add-header", "Accept-Language:en-US,en;q=0.9",
 		"--extractor-args", "youtube:player_client=android",
@@ -455,12 +465,6 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 			continue
 		}
 		videos = append(videos, videoInfo)
-	}
-
-	// Determine if this is a new channel
-	isNewChannel, err := db.IsNewChannel(subscription.ID)
-	if err != nil {
-		return fmt.Errorf("failed to check if channel is new: %w", err)
 	}
 
 	// Get the upload date of the newest video

@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/stretchr/testify/assert"
 	"yt-podcaster/internal/models"
 	"yt-podcaster/internal/test"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthMiddleware(t *testing.T) {
@@ -33,7 +34,7 @@ func TestAuthMiddleware(t *testing.T) {
 		rr := httptest.NewRecorder()
 
 		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctxUser := r.Context().Value(UserContextKey)
+			ctxUser := r.Context().Value(models.UserContextKey)
 			assert.NotNil(t, ctxUser)
 			dbUser, ok := ctxUser.(*models.User)
 			assert.True(t, ok)

@@ -145,7 +145,7 @@ func (h *Handlers) handleListCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Mes
 	}
 
 	for _, sub := range subscriptions {
-		response += fmt.Sprintf("<b>%s</b>: %s/rss/%s\n", sub.ChannelTitle, baseURL, sub.RSSUUID)
+		response += fmt.Sprintf("<b>%s</b>: %s/rss/%s\n", sub.YoutubeChannelTitle, baseURL, sub.RSSUUID)
 	}
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, response)

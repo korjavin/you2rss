@@ -13,7 +13,7 @@ func GetSubscriptionByID(id int) (models.Subscription, error) {
 
 func GetSubscriptionsByUserID(userID int64) ([]models.Subscription, error) {
 	query := `
-		SELECT id, user_id, youtube_channel_id, youtube_channel_title, created_at
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
 		FROM subscriptions
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -42,7 +42,7 @@ func AddSubscription(userID int64, channelID string, channelTitle string) (*mode
 	query := `
 		INSERT INTO subscriptions (user_id, youtube_channel_id, youtube_channel_title)
 		VALUES ($1, $2, $3)
-		RETURNING id, user_id, youtube_channel_id, youtube_channel_title, created_at
+		RETURNING id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
 	`
 	sub := &models.Subscription{}
 	err := DB.Get(sub, query, userID, channelID, channelTitle)
@@ -66,9 +66,23 @@ func DeleteSubscription(userID int64, subscriptionID int) error {
 	return nil
 }
 
+func GetSubscriptionByRSSUUID(rssUUID string) (models.Subscription, error) {
+	subscription := models.Subscription{}
+	query := `
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
+		FROM subscriptions
+		WHERE rss_uuid = $1
+	`
+	err := DB.Get(&subscription, query, rssUUID)
+	if err != nil {
+		log.Printf("Error getting subscription by rss_uuid: %v", err)
+	}
+	return subscription, err
+}
+
 func GetAllSubscriptions() ([]models.Subscription, error) {
 	query := `
-		SELECT id, user_id, youtube_channel_id, youtube_channel_title, created_at
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
 		FROM subscriptions
 		ORDER BY created_at DESC
 	`

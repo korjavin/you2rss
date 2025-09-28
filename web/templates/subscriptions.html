@@ -1,19 +1,16 @@
-{{if .RSSURL}}
-<div class="rss-card">
-    <h3>📡 Your Podcast Feed</h3>
-    <p>Copy this URL and add it to your podcast app:</p>
-    <div class="rss-url">{{.RSSURL}}</div>
-    <button class="copy-btn" onclick="copyRSSURL('{{.RSSURL}}')">
-        📋 Copy RSS URL
-    </button>
-</div>
-{{end}} {{if .Subscriptions}}
-<h3>📺 Subscribed Channels</h3>
+{{if .Subscriptions}}
+<h3>📺 Your Podcast Subscriptions</h3>
 {{range .Subscriptions}}
 <div class="subscription-item">
     <div class="subscription-info">
         <h4>{{.YoutubeChannelTitle}}</h4>
-        <small>{{.YoutubeChannelID}}</small>
+        <div class="rss-url">{{.BaseURL}}/rss/{{.RSSUUID}}</div>
+        <button
+            class="copy-btn"
+            onclick="copyRSSURL('{{.BaseURL}}/rss/{{.RSSUUID}}')"
+        >
+            📋 Copy RSS URL
+        </button>
     </div>
     <button
         class="delete-btn secondary"

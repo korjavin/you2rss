@@ -8,5 +8,6 @@ type Subscription struct {
 	UserID              int64     `db:"user_id"`
 	YoutubeChannelID    string    `db:"youtube_channel_id"`
 	YoutubeChannelTitle string    `db:"youtube_channel_title"`
+	RSSUUID             string    `db:"rss_uuid"`
 	CreatedAt           time.Time `db:"created_at"`
 }

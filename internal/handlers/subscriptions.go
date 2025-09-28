@@ -219,13 +219,13 @@ func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		baseURL = "http://localhost:8080" // fallback for development
 	}
 
-	// Create template data with subscriptions and RSS URL
+	// Create template data with subscriptions and base URL for individual RSS feeds
 	templateData := struct {
 		Subscriptions []models.Subscription
-		RSSURL        string
+		BaseURL       string
 	}{
 		Subscriptions: subscriptions,
-		RSSURL:        fmt.Sprintf("%s/rss/%s", baseURL, user.RSSUUID),
+		BaseURL:       baseURL,
 	}
 
 	err = h.templates.ExecuteTemplate(w, "subscriptions.html", templateData)

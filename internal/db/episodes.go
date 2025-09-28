@@ -68,3 +68,14 @@ func GetFailedEpisodesOlderThan(duration time.Duration) ([]models.Episode, error
 	err := DB.Select(&episodes, query, cutoffTime)
 	return episodes, err
 }
+
+func GetCompletedEpisodesBySubscriptionID(subscriptionID int) ([]models.Episode, error) {
+	var episodes []models.Episode
+	query := `
+		SELECT * FROM episodes
+		WHERE subscription_id = $1 AND status = 'COMPLETED'
+		ORDER BY published_at DESC
+	`
+	err := DB.Select(&episodes, query, subscriptionID)
+	return episodes, err
+}

@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/stretchr/testify/assert"
 	"yt-podcaster/internal/middleware"
 	"yt-podcaster/internal/models"
 	"yt-podcaster/internal/test"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
 )
 
 var validInitData = "query_id=AAHdF614AAAAAN0Xrhom_pA&user=%7B%22id%22%3A123%2C%22first_name%22%3A%22Test%22%2C%22last_name%22%3A%22User%22%2C%22username%22%3A%22testuser%22%2C%22language_code%22%3A%22en%22%7D&auth_date=1672531200&hash=e51bca5855f98822011a62a939aa68e9be25b5502195f128038d8c364273872f"
@@ -27,11 +28,11 @@ func TestGetRootHandler(t *testing.T) {
 
 	// The root handler doesn't require authentication - it just serves the HTML page
 	// No database queries expected
-	
+
 	app.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "<h1>YT-Podcaster</h1>")
+	assert.Contains(t, rr.Body.String(), "🎧 YT-Podcaster")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -39,7 +40,7 @@ func TestPostSubscriptionsHandler(t *testing.T) {
 	t.Skip("Skipping POST test that requires yt-dlp mocking for CI compatibility")
 	middleware.SetTestToken("dummy-token")
 	defer middleware.SetTestToken("")
-	
+
 	mockEnqueuer := &test.MockTaskEnqueuer{}
 	app := NewApp(mockEnqueuer)
 	_, mock := test.NewMockDB(t)
@@ -56,7 +57,7 @@ func TestPostSubscriptionsHandler(t *testing.T) {
 	userRows := sqlmock.NewRows([]string{"id", "telegram_id", "telegram_username", "rss_uuid", "created_at", "updated_at"}).
 		AddRow(user.ID, user.TelegramID, user.TelegramUsername, "some-uuid", user.CreatedAt, user.CreatedAt)
 	mock.ExpectQuery(`INSERT INTO users`).WithArgs(int64(123), "testuser").WillReturnRows(userRows)
-	
+
 	// Mock the subscription count check
 	countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM subscriptions WHERE user_id = \$1`).WithArgs(user.ID).WillReturnRows(countRows)
@@ -82,7 +83,7 @@ func TestPostSubscriptionsHandler(t *testing.T) {
 func TestDeleteSubscriptionHandler(t *testing.T) {
 	middleware.SetTestToken("dummy-token")
 	defer middleware.SetTestToken("")
-	
+
 	app := NewApp(nil)
 	_, mock := test.NewMockDB(t)
 
@@ -154,10 +155,10 @@ func TestServeAudioHandler(t *testing.T) {
 	app.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	
+
 	// MIME type can vary between systems for .m4a files
 	contentType := rr.Header().Get("Content-Type")
 	assert.Contains(t, []string{"audio/mp4", "audio/mp4a-latm"}, contentType)
-	
+
 	assert.Equal(t, "dummy audio data", rr.Body.String())
 }

@@ -1,177 +1,328 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT-Podcaster</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-</head>
-<body>
-<main class="container">
-    <h1>YT-Podcaster</h1>
-    <p>Welcome to YT-Podcaster. Your personal podcast feed for YouTube channels.</p>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>YT-Podcaster</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+        />
+        <style>
+            /* Custom styling for a cleaner look */
+            :root {
+                --pico-primary-color: #ff6b6b;
+                --pico-primary-background: #ff6b6b;
+            }
 
-    <h2>Add Subscription</h2>
-    <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px;">
-        Debug info will appear here...
-    </div>
-    <form id="subscription-form">
-        <label for="url">YouTube Channel URL</label>
-        <input type="url" id="url" name="url" placeholder="https://www.youtube.com/channel/..." required>
-        <button type="submit">Subscribe</button>
-    </form>
+            .app-header {
+                text-align: center;
+                margin-bottom: 2rem;
+            }
 
-    <h2>Your Subscriptions</h2>
-    <div id="subscription-list">
-        <p>Loading subscriptions...</p>
-    </div>
-</main>
+            .app-header h1 {
+                color: var(--pico-primary-color);
+                margin-bottom: 0.5rem;
+            }
 
-<script>
-// Debug logging function
-function debugLog(message) {
-    const debugDiv = document.getElementById('debug-info');
-    const timestamp = new Date().toLocaleTimeString();
-    debugDiv.innerHTML += `<div>${timestamp}: ${message}</div>`;
-    debugDiv.scrollTop = debugDiv.scrollHeight;
-}
+            .app-header p {
+                color: var(--pico-muted-color);
+                margin-bottom: 0;
+            }
 
-// Debug form state
-function debugFormState() {
-    debugLog('Subscribe button clicked');
-    const form = document.querySelector('form[hx-post]');
-    const urlInput = document.getElementById('url');
-    
-    debugLog('Form valid: ' + form.checkValidity());
-    debugLog('URL value: "' + urlInput.value + '"');
-    debugLog('URL valid: ' + urlInput.checkValidity());
-    debugLog('URL validation message: "' + urlInput.validationMessage + '"');
-}
+            .section {
+                margin-bottom: 3rem;
+            }
 
-// Initialize Telegram Web App
-debugLog('Initializing Telegram Web App...');
-window.Telegram.WebApp.ready();
+            .rss-card {
+                background: var(--pico-card-background-color);
+                border: 1px solid var(--pico-muted-border-color);
+                border-radius: var(--pico-border-radius);
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
 
-// Debug Telegram Web App state
-debugLog('Telegram WebApp available: ' + !!window.Telegram?.WebApp);
-debugLog('InitData available: ' + !!window.Telegram?.WebApp?.initData);
-debugLog('InitData length: ' + (window.Telegram?.WebApp?.initData?.length || 0));
+            .rss-url {
+                font-family: var(--pico-font-family-monospace);
+                font-size: 0.875rem;
+                background: var(--pico-code-background-color);
+                padding: 0.5rem;
+                border-radius: var(--pico-border-radius);
+                word-break: break-all;
+                margin: 1rem 0;
+            }
 
-// Vanilla JS functions
-function makeAuthenticatedRequest(method, url, data = null) {
-    debugLog('Making ' + method + ' request to ' + url);
-    
-    if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
-        debugLog('ERROR: Telegram initData not available!');
-        return Promise.reject('No auth data');
-    }
-    
-    const headers = {
-        'Authorization': 'tma ' + window.Telegram.WebApp.initData
-    };
-    
-    if (data instanceof FormData) {
-        // Convert FormData to URL-encoded string for Go server compatibility  
-        const params = new URLSearchParams();
-        for (const [key, value] of data.entries()) {
-            params.append(key, value);
-        }
-        data = params.toString();
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    } else if (data) {
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    }
-    
-    debugLog('Auth header length: ' + window.Telegram.WebApp.initData.length);
-    
-    return fetch(url, {
-        method: method,
-        headers: headers,
-        body: data
-    }).then(response => {
-        debugLog('Response: ' + response.status + ' ' + response.statusText);
-        return response;
-    });
-}
+            .copy-btn {
+                --pico-font-size: 0.875rem;
+            }
 
-function loadSubscriptions() {
-    debugLog('Loading subscriptions...');
-    makeAuthenticatedRequest('GET', '/subscriptions')
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('subscription-list').innerHTML = html;
-            debugLog('Subscriptions loaded successfully');
-        })
-        .catch(error => {
-            debugLog('Error loading subscriptions: ' + error);
-            document.getElementById('subscription-list').innerHTML = '<p>Error loading subscriptions</p>';
-        });
-}
+            .subscription-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem;
+                border: 1px solid var(--pico-muted-border-color);
+                border-radius: var(--pico-border-radius);
+                margin-bottom: 0.75rem;
+            }
 
-function handleSubscriptionSubmit(event) {
-    event.preventDefault();
-    debugLog('Form submit intercepted by vanilla JS');
-    
-    const form = document.getElementById('subscription-form');
-    const formData = new FormData(form);
-    const urlValue = formData.get('url');
-    
-    debugLog('Submitting URL: ' + urlValue);
-    
-    if (!form.checkValidity()) {
-        debugLog('Form validation failed');
-        return;
-    }
-    
-    makeAuthenticatedRequest('POST', '/subscriptions', formData)
-        .then(response => {
-            if (response.ok) {
-                debugLog('Subscription created successfully');
-                form.reset();
-                loadSubscriptions(); // Reload the subscription list
-            } else {
-                return response.text().then(text => {
-                    debugLog('Subscription failed: ' + response.status + ' - ' + text);
-                    alert('Subscription failed: ' + text);
+            .subscription-info h4 {
+                margin: 0 0 0.25rem 0;
+                font-size: 1rem;
+            }
+
+            .subscription-info small {
+                color: var(--pico-muted-color);
+            }
+
+            .delete-btn {
+                --pico-font-size: 0.875rem;
+                padding: 0.5rem 1rem;
+            }
+
+            .loading {
+                text-align: center;
+                color: var(--pico-muted-color);
+                padding: 2rem;
+            }
+
+            .error {
+                color: var(--pico-del-color);
+                text-align: center;
+                padding: 1rem;
+            }
+
+            .success-message {
+                background: var(--pico-ins-color);
+                color: white;
+                padding: 1rem;
+                border-radius: var(--pico-border-radius);
+                margin-bottom: 1rem;
+                text-align: center;
+            }
+
+            .form-section {
+                background: var(--pico-card-background-color);
+                padding: 1.5rem;
+                border-radius: var(--pico-border-radius);
+                border: 1px solid var(--pico-muted-border-color);
+            }
+
+            /* Dark mode adjustments */
+            [data-theme="dark"] {
+                --pico-primary-color: #ff7979;
+            }
+        </style>
+    </head>
+    <body>
+        <main class="container">
+            <header class="app-header">
+                <h1>🎧 YT-Podcaster</h1>
+                <p>
+                    Transform YouTube channels into your personal podcast feed
+                </p>
+            </header>
+
+            <section class="section">
+                <div class="form-section">
+                    <h2>Add YouTube Channel</h2>
+                    <form id="subscription-form">
+                        <label for="url">YouTube Channel URL</label>
+                        <input
+                            type="url"
+                            id="url"
+                            name="url"
+                            placeholder="https://www.youtube.com/@channelname or https://www.youtube.com/channel/..."
+                            required
+                        />
+                        <button type="submit" id="submit-btn">
+                            <span id="submit-text">Add Channel</span>
+                            <span id="submit-loading" style="display: none"
+                                >Adding...</span
+                            >
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Your Podcast Feed</h2>
+                <div id="subscription-list">
+                    <div class="loading">Loading your subscriptions...</div>
+                </div>
+            </section>
+        </main>
+
+        <script>
+            // Initialize Telegram Web App
+            window.Telegram.WebApp.ready();
+
+            // Set up theme based on Telegram
+            if (window.Telegram?.WebApp?.colorScheme === "dark") {
+                document.documentElement.setAttribute("data-theme", "dark");
+            }
+
+            // Expand the web app to full height
+            if (window.Telegram?.WebApp?.expand) {
+                window.Telegram.WebApp.expand();
+            }
+
+            // Utility functions
+            function showSubmitLoading(show) {
+                const submitBtn = document.getElementById("submit-btn");
+                const submitText = document.getElementById("submit-text");
+                const submitLoading = document.getElementById("submit-loading");
+
+                if (show) {
+                    submitBtn.disabled = true;
+                    submitText.style.display = "none";
+                    submitLoading.style.display = "inline";
+                } else {
+                    submitBtn.disabled = false;
+                    submitText.style.display = "inline";
+                    submitLoading.style.display = "none";
+                }
+            }
+
+            function showMessage(message, type = "error") {
+                const existingMessage = document.querySelector(
+                    ".success-message, .error",
+                );
+                if (existingMessage) {
+                    existingMessage.remove();
+                }
+
+                const messageDiv = document.createElement("div");
+                messageDiv.className =
+                    type === "success" ? "success-message" : "error";
+                messageDiv.textContent = message;
+
+                const form = document.getElementById("subscription-form");
+                form.parentNode.insertBefore(messageDiv, form);
+
+                // Auto-remove success messages after 3 seconds
+                if (type === "success") {
+                    setTimeout(() => {
+                        if (messageDiv.parentNode) {
+                            messageDiv.remove();
+                        }
+                    }, 3000);
+                }
+            }
+
+            // API request function
+            function makeAuthenticatedRequest(method, url, data = null) {
+                if (
+                    !window.Telegram ||
+                    !window.Telegram.WebApp ||
+                    !window.Telegram.WebApp.initData
+                ) {
+                    throw new Error("Telegram authentication not available");
+                }
+
+                const headers = {
+                    Authorization: "tma " + window.Telegram.WebApp.initData,
+                };
+
+                if (data instanceof FormData) {
+                    const params = new URLSearchParams();
+                    for (const [key, value] of data.entries()) {
+                        params.append(key, value);
+                    }
+                    data = params.toString();
+                    headers["Content-Type"] =
+                        "application/x-www-form-urlencoded";
+                } else if (data) {
+                    headers["Content-Type"] =
+                        "application/x-www-form-urlencoded";
+                }
+
+                return fetch(url, {
+                    method: method,
+                    headers: headers,
+                    body: data,
                 });
             }
-        })
-        .catch(error => {
-            debugLog('Subscription error: ' + error);
-            alert('Subscription failed: ' + error);
-        });
-}
 
-// Set up theme
-if (window.Telegram?.WebApp?.colorScheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-}
+            // Load subscriptions
+            function loadSubscriptions() {
+                makeAuthenticatedRequest("GET", "/subscriptions")
+                    .then((response) => response.text())
+                    .then((html) => {
+                        document.getElementById("subscription-list").innerHTML =
+                            html;
+                    })
+                    .catch((error) => {
+                        document.getElementById("subscription-list").innerHTML =
+                            '<div class="error">Failed to load subscriptions. Please refresh the page.</div>';
+                    });
+            }
 
-// Expand the web app to full height
-if (window.Telegram?.WebApp?.expand) {
-    window.Telegram.WebApp.expand();
-}
+            // Handle form submission
+            function handleSubscriptionSubmit(event) {
+                event.preventDefault();
 
-// Initialize vanilla JS handlers
-setTimeout(() => {
-    debugLog('Setting up vanilla JS handlers...');
-    
-    // Load subscriptions on page load
-    loadSubscriptions();
-    
-    // Set up form submit handler
-    const form = document.getElementById('subscription-form');
-    if (form) {
-        form.addEventListener('submit', handleSubscriptionSubmit);
-        debugLog('Form submit handler attached');
-    } else {
-        debugLog('ERROR: Could not find subscription form');
-    }
-    
-    debugLog('Vanilla JS setup complete');
-}, 1000);
-</script>
-</body>
+                const form = document.getElementById("subscription-form");
+                const formData = new FormData(form);
+
+                if (!form.checkValidity()) {
+                    return;
+                }
+
+                showSubmitLoading(true);
+
+                makeAuthenticatedRequest("POST", "/subscriptions", formData)
+                    .then((response) => {
+                        if (response.ok) {
+                            showMessage(
+                                "Channel added successfully!",
+                                "success",
+                            );
+                            form.reset();
+                            loadSubscriptions();
+                        } else {
+                            return response.text().then((text) => {
+                                showMessage(`Failed to add channel: ${text}`);
+                            });
+                        }
+                    })
+                    .catch((error) => {
+                        showMessage(`Failed to add channel: ${error.message}`);
+                    })
+                    .finally(() => {
+                        showSubmitLoading(false);
+                    });
+            }
+
+            // Copy RSS URL function (used by template)
+            function copyRSSURL(url) {
+                navigator.clipboard
+                    .writeText(url)
+                    .then(() => {
+                        showMessage("RSS URL copied to clipboard!", "success");
+                    })
+                    .catch(() => {
+                        // Fallback for older browsers
+                        const textArea = document.createElement("textarea");
+                        textArea.value = url;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textArea);
+                        showMessage("RSS URL copied to clipboard!", "success");
+                    });
+            }
+
+            // Initialize the app
+            document.addEventListener("DOMContentLoaded", () => {
+                const form = document.getElementById("subscription-form");
+                if (form) {
+                    form.addEventListener("submit", handleSubscriptionSubmit);
+                }
+
+                loadSubscriptions();
+            });
+        </script>
+    </body>
 </html>

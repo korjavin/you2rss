@@ -1,28 +1,56 @@
 {{if .RSSURL}}
-<article>
-    <header>📡 Your RSS Feed URL</header>
-    <p>
-        <small><code>{{.RSSURL}}</code></small>
-    </p>
-    <footer>
-        <button onclick="navigator.clipboard.writeText('{{.RSSURL}}')">
-            Copy RSS URL
-        </button>
-    </footer>
-</article>
-{{end}} {{range .Subscriptions}}
-<article>
-    <header>{{.YoutubeChannelTitle}}</header>
-    <p><small>Channel ID: {{.YoutubeChannelID}}</small></p>
-    <footer>
-        <button
-            class="secondary"
-            hx-delete="/subscriptions/{{.ID}}"
-            hx-target="closest article"
-            hx-swap="outerHTML"
-        >
-            Delete
-        </button>
-    </footer>
-</article>
+<div class="rss-card">
+    <h3>📡 Your Podcast Feed</h3>
+    <p>Copy this URL and add it to your podcast app:</p>
+    <div class="rss-url">{{.RSSURL}}</div>
+    <button class="copy-btn" onclick="copyRSSURL('{{.RSSURL}}')">
+        📋 Copy RSS URL
+    </button>
+</div>
+{{end}} {{if .Subscriptions}}
+<h3>📺 Subscribed Channels</h3>
+{{range .Subscriptions}}
+<div class="subscription-item">
+    <div class="subscription-info">
+        <h4>{{.YoutubeChannelTitle}}</h4>
+        <small>{{.YoutubeChannelID}}</small>
+    </div>
+    <button
+        class="delete-btn secondary"
+        onclick="deleteSubscription({{.ID}})"
+        title="Remove subscription"
+    >
+        🗑️ Remove
+    </button>
+</div>
+{{end}} {{else}}
+<div class="loading">
+    <p>No channels subscribed yet.</p>
+    <small>Add a YouTube channel above to get started!</small>
+</div>
 {{end}}
+
+<script>
+    // Delete subscription function
+    function deleteSubscription(subscriptionId) {
+        if (!confirm("Are you sure you want to remove this subscription?")) {
+            return;
+        }
+
+        makeAuthenticatedRequest("DELETE", `/subscriptions/${subscriptionId}`)
+            .then((response) => {
+                if (response.ok) {
+                    showMessage(
+                        "Subscription removed successfully!",
+                        "success",
+                    );
+                    loadSubscriptions(); // Reload the list
+                } else {
+                    showMessage("Failed to remove subscription");
+                }
+            })
+            .catch((error) => {
+                showMessage(`Failed to remove subscription: ${error.message}`);
+            });
+    }
+</script>

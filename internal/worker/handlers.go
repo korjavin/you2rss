@@ -2,8 +2,10 @@ package worker
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -20,6 +22,43 @@ import (
 
 var execCommand = exec.Command
 var execCommandContext = exec.CommandContext
+
+// setupCookieFile creates a temporary cookie file from base64 encoded environment variable
+func setupCookieFile() (string, func(), error) {
+	cookieBase64 := os.Getenv("YOUTUBE_COOKIES_BASE64")
+	if cookieBase64 == "" {
+		// No cookies provided, return empty string to indicate no cookie file
+		return "", func() {}, nil
+	}
+
+	// Decode base64 cookie data
+	cookieData, err := base64.StdEncoding.DecodeString(cookieBase64)
+	if err != nil {
+		return "", func() {}, fmt.Errorf("failed to decode base64 cookies: %w", err)
+	}
+
+	// Create temporary cookie file
+	tmpFile, err := ioutil.TempFile("", "youtube_cookies_*.txt")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("failed to create temporary cookie file: %w", err)
+	}
+
+	// Write cookie data to file
+	if _, err := tmpFile.Write(cookieData); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+		return "", func() {}, fmt.Errorf("failed to write cookie data: %w", err)
+	}
+
+	tmpFile.Close()
+
+	// Return cleanup function
+	cleanup := func() {
+		os.Remove(tmpFile.Name())
+	}
+
+	return tmpFile.Name(), cleanup, nil
+}
 
 // getYouTubeRequestDelay returns delay between YouTube requests to be gentle
 func getYouTubeRequestDelay() time.Duration {
@@ -164,8 +203,15 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	ctx, cancel := context.WithTimeout(ctx, getProcessVideoTimeout())
 	defer cancel()
 
-	// yt-dlp command with bot detection bypass
-	cmd := execCommandContext(ctx, "yt-dlp",
+	// Setup cookie file if available
+	cookieFile, cleanupCookie, err := setupCookieFile()
+	if err != nil {
+		log.Printf("Warning: failed to setup cookie file: %v", err)
+	}
+	defer cleanupCookie()
+
+	// Build yt-dlp command arguments
+	args := []string{
 		"-x", // extract audio
 		"--audio-format", "m4a",
 		"-o", audioPath,
@@ -173,8 +219,18 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		"--add-header", "Accept-Language:en-US,en;q=0.9",
 		"--extractor-args", "youtube:player_client=android",
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", p.YoutubeVideoID),
-	)
+	}
+
+	// Add cookie file if available
+	if cookieFile != "" {
+		args = append(args, "--cookies", cookieFile)
+		log.Printf("Using cookie file for authentication")
+	}
+
+	// Add the video URL
+	args = append(args, fmt.Sprintf("https://www.youtube.com/watch?v=%s", p.YoutubeVideoID))
+
+	cmd := execCommandContext(ctx, "yt-dlp", args...)
 
 	// Add gentle delay before making YouTube request
 	time.Sleep(getYouTubeRequestDelay())
@@ -340,18 +396,36 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	ctx, cancel := context.WithTimeout(ctx, getCheckChannelTimeout())
 	defer cancel()
 
+	// Setup cookie file if available
+	cookieFile, cleanupCookie, err := setupCookieFile()
+	if err != nil {
+		log.Printf("Warning: failed to setup cookie file: %v", err)
+	}
+	defer cleanupCookie()
+
 	// Try multiple URL formats for better compatibility
 	channelURL := fmt.Sprintf("https://www.youtube.com/channel/%s/videos", subscription.YoutubeChannelID)
 
-	cmd := execCommandContext(ctx, "yt-dlp",
+	// Build yt-dlp command arguments
+	args := []string{
 		"--flat-playlist",
 		"-j",
 		"--playlist-end", "20", // Limit to 20 most recent videos
 		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		"--add-header", "Accept-Language:en-US,en;q=0.9",
 		"--extractor-args", "youtube:player_client=android",
-		channelURL,
-	)
+	}
+
+	// Add cookie file if available
+	if cookieFile != "" {
+		args = append(args, "--cookies", cookieFile)
+		log.Printf("Using cookie file for channel check")
+	}
+
+	// Add the channel URL
+	args = append(args, channelURL)
+
+	cmd := execCommandContext(ctx, "yt-dlp", args...)
 
 	// Add gentle delay before making YouTube request
 	time.Sleep(getYouTubeRequestDelay())

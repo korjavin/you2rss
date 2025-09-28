@@ -88,6 +88,42 @@ The service is configured using environment variables. Create a `.env` file in t
 - **PROCESS_VIDEO_TIMEOUT_MINUTES**: Video processing timeout (default: `15`)
 - **CHANNEL_INFO_TIMEOUT_SECONDS**: Channel info fetching timeout (default: `15`)
 
+### YouTube Authentication Configuration
+
+To avoid YouTube bot detection errors ("Sign in to confirm you're not a bot"), you can provide YouTube cookies from your browser:
+
+- **YOUTUBE_COOKIES_BASE64**: Base64 encoded YouTube cookies for authentication (optional but recommended)
+
+#### Setting up YouTube Cookies
+
+1. **Extract cookies from your browser:**
+   ```bash
+   # Install yt-dlp if you haven't already
+   pip install yt-dlp
+   
+   # Extract cookies from Chrome (or firefox, safari, etc.)
+   yt-dlp --cookies-from-browser chrome --cookies cookies.txt
+   ```
+
+2. **Encode the cookie file for environment variable:**
+   ```bash
+   # Convert cookie file to base64
+   base64 -i cookies.txt
+   ```
+
+3. **Set the environment variable:**
+   ```bash
+   # Copy the base64 output and set it as environment variable
+   export YOUTUBE_COOKIES_BASE64="IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCiMgVGhpcyBmaWxlIGlz..."
+   ```
+
+4. **In Docker/Portainer:**
+   - Add `YOUTUBE_COOKIES_BASE64` as an environment variable
+   - Paste the entire base64 string as the value
+   - The service will automatically create temporary cookie files for yt-dlp
+
+**Security Note**: Keep your cookie data secure as it contains your YouTube session information. Cookies typically expire after some time and may need to be refreshed periodically.
+
 ## Installation and Deployment
 
 For detailed instructions on how to set up, configure, and deploy the service, please see the comprehensive **[Deployment Guide](DEPLOYMENT.md)**.

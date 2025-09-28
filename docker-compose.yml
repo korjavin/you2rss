@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
 
   you2rss-migrate:
-    # The image tag will be replaced by the GitHub Actions workflow  
+    # The image tag will be replaced by the GitHub Actions workflow
     image: ghcr.io/korjavin/you2rss:latest
     container_name: you2rss-migrate
     depends_on:
@@ -118,7 +118,6 @@ services:
     environment:
       REDIS_ADDR: "you2rss-redis:6379"
     restart: unless-stopped
-
 volumes:
   audio_data:
   postgres_data:

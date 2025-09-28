@@ -24,6 +24,26 @@ func UpsertUser(id int64, username string) (*models.User, error) {
 	return user, nil
 }
 
+// FindOrCreateUserByTelegramID finds a user by their telegram ID or creates a new one.
+func FindOrCreateUserByTelegramID(telegramID int64, username string) (*models.User, error) {
+	query := `
+		SELECT id, telegram_username, rss_uuid, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+	user := &models.User{}
+	err := DB.Get(user, query, telegramID)
+	if err != nil {
+		// If the user is not found, create a new one.
+		if err.Error() == "sql: no rows in result set" {
+			return UpsertUser(telegramID, username)
+		}
+		log.Printf("Error getting user by telegram_id: %v", err)
+		return nil, err
+	}
+	return user, nil
+}
+
 // GetUserByRSSUUID retrieves a user by their RSS UUID.
 func GetUserByRSSUUID(uuid string) (*models.User, error) {
 	query := `

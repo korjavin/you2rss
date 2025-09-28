@@ -21,6 +21,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.CommitSHA=${COMMIT_SHA}"
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.CommitSHA=${COMMIT_SHA}" -o ./bin/scheduler ./cmd/scheduler
 
 
+
 # Stage 2: Create the final image
 FROM alpine:latest
 
@@ -37,6 +38,7 @@ RUN apk add --no-cache \
 COPY --from=builder /app/bin/server .
 COPY --from=builder /app/bin/worker .
 COPY --from=builder /app/bin/scheduler .
+
 
 # Copy the templates and migrations
 COPY web/templates ./web/templates

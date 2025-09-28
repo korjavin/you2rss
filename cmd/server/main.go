@@ -8,15 +8,16 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gorilla/mux"
-	"github.com/hibiken/asynq"
-	"github.com/joho/godotenv"
-	"golang.org/x/time/rate"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/internal/handlers"
 	"yt-podcaster/internal/middleware"
 	"yt-podcaster/internal/test"
 	"yt-podcaster/pkg/tasks"
+
+	"github.com/gorilla/mux"
+	"github.com/hibiken/asynq"
+	"github.com/joho/godotenv"
+	"golang.org/x/time/rate"
 )
 
 // CommitSHA is set at build time via ldflags
@@ -135,5 +136,14 @@ func main() {
 	db.InitDB()
 
 	app := NewApp(nil)
+
+	// Start the Telegram bot in a goroutine
+	go app.startTelegramBot()
+
 	app.Serve()
+}
+
+func (a *App) startTelegramBot() {
+	h := handlers.New(a.templates, a.asynqClient, audioStoragePath)
+	h.StartTelegramBot()
 }

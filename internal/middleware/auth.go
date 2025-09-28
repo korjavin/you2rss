@@ -9,13 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telegram-mini-apps/init-data-golang"
 	"yt-podcaster/internal/db"
+	"yt-podcaster/internal/models"
+
+	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
-
-type contextKey string
-
-const UserContextKey contextKey = "user"
 
 var telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
 
@@ -34,10 +32,10 @@ func SetTestToken(token string) {
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("AuthMiddleware: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-		
+
 		authHeader := r.Header.Get("Authorization")
 		log.Printf("AuthMiddleware: Authorization header present: %v", authHeader != "")
-		
+
 		if authHeader == "" || !strings.HasPrefix(authHeader, "tma ") {
 			log.Printf("AuthMiddleware: Missing or invalid auth header")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -51,7 +49,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			}
 			return initData
 		}())
-		
+
 		// Try URL decoding in case the initData got encoded
 		if decodedInitData, err := url.QueryUnescape(initData); err == nil && decodedInitData != initData {
 			log.Printf("AuthMiddleware: Detected URL-encoded initData, using decoded version")
@@ -68,9 +66,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
-			
+
 			log.Printf("AuthMiddleware: Parsed user data - ID: %d, Username: %s", data.User.ID, data.User.Username)
-			
+
 			user, err := db.UpsertUser(data.User.ID, data.User.Username)
 			if err != nil {
 				log.Printf("AuthMiddleware: Failed to upsert user: %v", err)
@@ -79,11 +77,11 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			log.Printf("AuthMiddleware: Successfully authenticated user %d", user.ID)
-			ctx := context.WithValue(r.Context(), UserContextKey, user)
+			ctx := context.WithValue(r.Context(), models.UserContextKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
-		
+
 		// Validate the initData for production
 		log.Printf("AuthMiddleware: Validating initData for production")
 		err := initdata.Validate(initData, getTelegramBotToken(), 1*time.Hour)

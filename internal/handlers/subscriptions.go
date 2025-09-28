@@ -213,7 +213,22 @@ func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.templates.ExecuteTemplate(w, "subscriptions.html", subscriptions)
+	// Get BASE_URL from environment
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080" // fallback for development
+	}
+
+	// Create template data with subscriptions and RSS URL
+	templateData := struct {
+		Subscriptions []models.Subscription
+		RSSURL        string
+	}{
+		Subscriptions: subscriptions,
+		RSSURL:        fmt.Sprintf("%s/rss/%s", baseURL, user.RSSUUID),
+	}
+
+	err = h.templates.ExecuteTemplate(w, "subscriptions.html", templateData)
 	if err != nil {
 		log.Printf("Error executing template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

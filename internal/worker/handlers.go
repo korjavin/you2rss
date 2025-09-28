@@ -83,12 +83,15 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 	ctx, cancel := context.WithTimeout(ctx, getProcessVideoTimeout())
 	defer cancel()
 
-	// yt-dlp command
+	// yt-dlp command with bot detection bypass
 	cmd := execCommandContext(ctx, "yt-dlp",
 		"-x", // extract audio
 		"--audio-format", "m4a",
 		"-o", audioPath,
 		"--print-json", // print video metadata as JSON
+		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		"--add-header", "Accept-Language:en-US,en;q=0.9",
+		"--extractor-args", "youtube:player_client=android",
 		fmt.Sprintf("https://www.youtube.com/watch?v=%s", p.YoutubeVideoID),
 	)
 
@@ -196,6 +199,9 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 		"--flat-playlist",
 		"-j",
 		"--playlist-end", "20", // Limit to 20 most recent videos
+		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		"--add-header", "Accept-Language:en-US,en;q=0.9",
+		"--extractor-args", "youtube:player_client=android",
 		channelURL,
 	)
 

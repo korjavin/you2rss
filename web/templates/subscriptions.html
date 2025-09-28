@@ -1,9 +1,26 @@
-{{range .}}
+{{if .RSSURL}}
+<article>
+    <header>📡 Your RSS Feed URL</header>
+    <p>
+        <small><code>{{.RSSURL}}</code></small>
+    </p>
+    <footer>
+        <button onclick="navigator.clipboard.writeText('{{.RSSURL}}')">
+            Copy RSS URL
+        </button>
+    </footer>
+</article>
+{{end}} {{range .Subscriptions}}
 <article>
     <header>{{.YoutubeChannelTitle}}</header>
-    <p><small>{{.YoutubeChannelID}}</small></p>
+    <p><small>Channel ID: {{.YoutubeChannelID}}</small></p>
     <footer>
-        <button class="secondary" hx-delete="/subscriptions/{{.ID}}" hx-target="closest article" hx-swap="outerHTML">
+        <button
+            class="secondary"
+            hx-delete="/subscriptions/{{.ID}}"
+            hx-target="closest article"
+            hx-swap="outerHTML"
+        >
             Delete
         </button>
     </footer>

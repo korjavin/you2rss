@@ -188,11 +188,15 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	// Create a context with timeout to prevent hanging
 	ctx, cancel := context.WithTimeout(ctx, getCheckChannelTimeout())
 	defer cancel()
-	
+
+	// Try multiple URL formats for better compatibility
+	channelURL := fmt.Sprintf("https://www.youtube.com/channel/%s/videos", subscription.YoutubeChannelID)
+
 	cmd := execCommandContext(ctx, "yt-dlp",
 		"--flat-playlist",
 		"-j",
-		fmt.Sprintf("https://www.youtube.com/channel/%s", subscription.YoutubeChannelID),
+		"--playlist-end", "20", // Limit to 20 most recent videos
+		channelURL,
 	)
 
 	output, err := cmd.CombinedOutput()

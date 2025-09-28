@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"yt-podcaster/internal/db"
 	"yt-podcaster/internal/middleware"
 	"yt-podcaster/internal/models"
 	"yt-podcaster/pkg/tasks"
+
+	"github.com/gorilla/mux"
 )
 
 // execCommandContext can be mocked in tests
@@ -34,7 +35,7 @@ func getMaxSubscriptionsPerUser() int {
 }
 
 func getChannelInfoTimeout() time.Duration {
-	timeout := 15 * time.Second // default as in original code
+	timeout := 10 * time.Second // reduced timeout for web scraping
 	if env := os.Getenv("CHANNEL_INFO_TIMEOUT_SECONDS"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
 			timeout = time.Duration(val) * time.Second
@@ -53,13 +54,13 @@ func validateYouTubeURL(url string) bool {
 		`^https://(?:www\.)?youtube\.com/user/[a-zA-Z0-9_.-]+(?:/.*)?$`,
 		`^https://(?:www\.)?youtube\.com/c/[a-zA-Z0-9_.-]+(?:/.*)?$`,
 	}
-	
+
 	for _, pattern := range patterns {
 		if matched, _ := regexp.MatchString(pattern, url); matched {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -69,57 +70,57 @@ func extractChannelInfo(ctx context.Context, channelURL string) (channelID, chan
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
-	
+
 	// Create request with context
 	req, err := http.NewRequestWithContext(ctx, "GET", channelURL, nil)
 	if err != nil {
 		return "", "", err
 	}
-	
+
 	// Add realistic headers to avoid bot detection
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
 	req.Header.Set("Connection", "keep-alive")
-	
+
 	// Make the request
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != 200 {
 		return "", "", err
 	}
-	
+
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", "", err
 	}
-	
+
 	html := string(body)
-	
+
 	// Log HTML snippet for debugging (first 500 chars)
 	htmlSnippet := html
 	if len(htmlSnippet) > 500 {
 		htmlSnippet = htmlSnippet[:500] + "..."
 	}
 	log.Printf("HTML snippet for debugging: %s", htmlSnippet)
-	
+
 	// Extract channel ID from various possible patterns
 	channelIDPatterns := []string{
 		`"channelId":"([^"]+)"`,
-		`"browse_id":"([^"]+)"`,  
+		`"browse_id":"([^"]+)"`,
 		`<link rel="canonical" href="https://www\.youtube\.com/channel/([^"]+)">`,
 		`<link rel="canonical" href="https://www\.youtube\.com/channel/([^"?]+)`,
 		`channel/([A-Za-z0-9_-]{24})`, // YouTube channel IDs are exactly 24 characters
 		`"externalId":"([^"]+)"`,
 		`data-channel-external-id="([^"]+)"`,
 	}
-	
+
 	log.Printf("Searching for channel ID...")
 	for i, pattern := range channelIDPatterns {
 		re := regexp.MustCompile(pattern)
@@ -136,7 +137,7 @@ func extractChannelInfo(ctx context.Context, channelURL string) (channelID, chan
 			}
 		}
 	}
-	
+
 	// Extract channel title
 	titlePatterns := []string{
 		`<title>([^-\|]+) - YouTube</title>`,
@@ -145,7 +146,7 @@ func extractChannelInfo(ctx context.Context, channelURL string) (channelID, chan
 		`<meta property="og:title" content="([^"]+)"`,
 		`<meta name="title" content="([^"]+)"`,
 	}
-	
+
 	log.Printf("Searching for channel title...")
 	for i, pattern := range titlePatterns {
 		re := regexp.MustCompile(pattern)
@@ -160,13 +161,13 @@ func extractChannelInfo(ctx context.Context, channelURL string) (channelID, chan
 			}
 		}
 	}
-	
+
 	log.Printf("Final extraction results - ID: '%s', Title: '%s'", channelID, channelTitle)
-	
+
 	if channelID == "" || channelTitle == "" {
 		return "", "", fmt.Errorf("could not extract channel info from HTML (ID found: %v, Title found: %v)", channelID != "", channelTitle != "")
 	}
-	
+
 	return channelID, channelTitle, nil
 }
 
@@ -189,7 +190,7 @@ func (h *Handlers) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	log.Printf("PostSubscription called - Method: %s, URL: %s, Content-Type: %s", r.Method, r.URL.String(), r.Header.Get("Content-Type"))
-	
+
 	user := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if user == nil {
 		log.Printf("PostSubscription: No user in context")
@@ -238,7 +239,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not extract channel info from URL", http.StatusBadRequest)
 		return
 	}
-	
+
 	log.Printf("Extracted channel info - ID: %s, Title: %s", channelID, channelTitle)
 
 	if channelID == "" || channelTitle == "" || channelTitle == "NA" {

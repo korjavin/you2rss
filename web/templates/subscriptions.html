@@ -29,28 +29,3 @@
     <small>Add a YouTube channel above to get started!</small>
 </div>
 {{end}}
-
-<script>
-    // Delete subscription function
-    function deleteSubscription(subscriptionId) {
-        if (!confirm("Are you sure you want to remove this subscription?")) {
-            return;
-        }
-
-        makeAuthenticatedRequest("DELETE", `/subscriptions/${subscriptionId}`)
-            .then((response) => {
-                if (response.ok) {
-                    showMessage(
-                        "Subscription removed successfully!",
-                        "success",
-                    );
-                    loadSubscriptions(); // Reload the list
-                } else {
-                    showMessage("Failed to remove subscription");
-                }
-            })
-            .catch((error) => {
-                showMessage(`Failed to remove subscription: ${error.message}`);
-            });
-    }
-</script>

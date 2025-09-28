@@ -4,10 +4,10 @@
 <div class="subscription-item">
     <div class="subscription-info">
         <h4>{{.YoutubeChannelTitle}}</h4>
-        <div class="rss-url">{{.BaseURL}}/rss/{{.RSSUUID}}</div>
+        <div class="rss-url">{{$.BaseURL}}/rss/{{.RSSUUID}}</div>
         <button
             class="copy-btn"
-            onclick="copyRSSURL('{{.BaseURL}}/rss/{{.RSSUUID}}')"
+            onclick="copyRSSURL('{{$.BaseURL}}/rss/{{.RSSUUID}}')"
         >
             📋 Copy RSS URL
         </button>

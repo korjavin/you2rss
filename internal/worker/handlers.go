@@ -367,7 +367,7 @@ func (h *TaskHandler) HandleCheckAllSubscriptionsTask(ctx context.Context, t *as
 			continue
 		}
 
-		_, err = h.asynqClient.Enqueue(task)
+		_, err = h.asynqClient.Enqueue(task, asynq.Queue("high"))
 		if err != nil {
 			log.Printf("failed to enqueue check channel task for subscription %d: %v", sub.ID, err)
 			continue
@@ -447,7 +447,7 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	}
 
 	// The output is a stream of JSON objects, one per line
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+	for i, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		var videoInfo struct {
 			ID string `json:"id"`
 		}
@@ -477,7 +477,13 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 			continue
 		}
 
-		_, err = h.asynqClient.Enqueue(task, tasks.GetProcessVideoTaskOptions()...)
+		// Prioritize newer videos (lower index = newer video)
+		var opts []asynq.Option
+		if i < 10 {
+			opts = append(opts, asynq.Queue("high"))
+		}
+
+		_, err = h.asynqClient.Enqueue(task, opts...)
 		if err != nil {
 			log.Printf("failed to enqueue process video task: %v", err)
 			continue

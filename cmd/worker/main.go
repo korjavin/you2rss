@@ -35,6 +35,10 @@ func main() {
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{
 			Concurrency: 1, // Process one task at a time to be gentle with YouTube
+			Queues: map[string]int{
+				"high":    2,
+				"default": 1,
+			},
 			// Custom retry delay function for exponential backoff
 			RetryDelayFunc: func(n int, err error, task *asynq.Task) time.Duration {
 				// Calculate exponential backoff delay

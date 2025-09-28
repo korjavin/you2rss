@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,86 @@ import (
 
 var execCommand = exec.Command
 var execCommandContext = exec.CommandContext
+
+// getYouTubeRequestDelay returns delay between YouTube requests to be gentle
+func getYouTubeRequestDelay() time.Duration {
+	delay := 30 * time.Second // default gentle delay
+	if env := os.Getenv("YOUTUBE_REQUEST_DELAY_SECONDS"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			delay = time.Duration(val) * time.Second
+		}
+	}
+	return delay
+}
+
+// calculateExponentialBackoff calculates delay for retry attempts
+func calculateExponentialBackoff(attempt int) time.Duration {
+	baseDelay := 5 * time.Minute
+	maxDelay := 24 * time.Hour
+
+	// Custom base delay from env
+	if env := os.Getenv("RETRY_BASE_DELAY_MINUTES"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			baseDelay = time.Duration(val) * time.Minute
+		}
+	}
+
+	// Exponential backoff: 5min, 10min, 20min, 40min, 80min, 160min, then cap at 24h
+	delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt)))
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+
+	return delay
+}
+
+// isTemporaryYouTubeError determines if an error is worth retrying
+func isTemporaryYouTubeError(output string) bool {
+	temporaryErrors := []string{
+		"Sign in to confirm you're not a bot",
+		"HTTP Error 429", // Rate limited
+		"HTTP Error 503", // Service unavailable
+		"HTTP Error 502", // Bad gateway
+		"HTTP Error 500", // Internal server error
+		"timeout",
+		"connection refused",
+		"connection reset",
+		"network is unreachable",
+		"temporary failure in name resolution",
+	}
+
+	outputLower := strings.ToLower(output)
+	for _, errPattern := range temporaryErrors {
+		if strings.Contains(outputLower, strings.ToLower(errPattern)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isPermanentYouTubeError determines if an error is permanent and should not be retried
+func isPermanentYouTubeError(output string) bool {
+	permanentErrors := []string{
+		"Video unavailable",
+		"Private video",
+		"This video is not available",
+		"HTTP Error 404", // Video not found
+		"HTTP Error 403", // Forbidden (usually permanent)
+		"Video was deleted",
+		"Copyright",
+		"This video has been removed",
+	}
+
+	outputLower := strings.ToLower(output)
+	for _, errPattern := range permanentErrors {
+		if strings.Contains(outputLower, strings.ToLower(errPattern)) {
+			return true
+		}
+	}
+
+	return false
+}
 
 func getProcessVideoTimeout() time.Duration {
 	timeout := 15 * time.Minute // default as in original code
@@ -95,11 +176,32 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 		fmt.Sprintf("https://www.youtube.com/watch?v=%s", p.YoutubeVideoID),
 	)
 
+	// Add gentle delay before making YouTube request
+	time.Sleep(getYouTubeRequestDelay())
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("failed to execute yt-dlp command: %v, output: %s", err, string(output))
+		outputStr := string(output)
+		log.Printf("failed to execute yt-dlp command: %v, output: %s", err, outputStr)
+
+		// Check if this is a permanent error
+		if isPermanentYouTubeError(outputStr) {
+			log.Printf("Permanent error detected for video %s, marking as failed", p.YoutubeVideoID)
+			db.UpdateEpisodeProcessingFailed(episode.ID)
+			return fmt.Errorf("permanent error: %w", err)
+		}
+
+		// Check if this is a temporary error worth retrying
+		if isTemporaryYouTubeError(outputStr) {
+			log.Printf("Temporary error detected for video %s, will retry", p.YoutubeVideoID)
+			// Return a regular error - asynq will handle the retry with exponential backoff
+			return fmt.Errorf("temporary YouTube error: %w", err)
+		}
+
+		// Unknown error - mark as failed for now but could be retried manually
+		log.Printf("Unknown error for video %s, marking as failed", p.YoutubeVideoID)
 		db.UpdateEpisodeProcessingFailed(episode.ID)
-		return fmt.Errorf("failed to execute yt-dlp command: %w", err)
+		return fmt.Errorf("unknown error: %w", err)
 	}
 
 	var ytDlpOutput YtDlpOutput
@@ -145,6 +247,52 @@ func (h *TaskHandler) HandleProcessVideoTask(ctx context.Context, t *asynq.Task)
 
 	log.Printf("Successfully processed video: %s", p.YoutubeVideoID)
 
+	return nil
+}
+
+func (h *TaskHandler) HandleRetryFailedEpisodesTask(ctx context.Context, t *asynq.Task) error {
+	log.Println("Retrying failed episodes...")
+
+	// Get failed episodes that haven't been updated recently (avoid immediate retries)
+	episodes, err := db.GetFailedEpisodesOlderThan(time.Hour)
+	if err != nil {
+		return fmt.Errorf("failed to get failed episodes: %w", err)
+	}
+
+	retriedCount := 0
+	for _, episode := range episodes {
+		// Check if this looks like a temporary error worth retrying
+		// For now, we'll retry all failed episodes that are old enough
+
+		log.Printf("Retrying failed episode: %s", episode.YoutubeVideoID)
+
+		// Reset episode status to pending so it can be processed again
+		err = db.UpdateEpisodeStatus(episode.ID, db.StatusPending)
+		if err != nil {
+			log.Printf("Failed to reset episode status for %s: %v", episode.YoutubeVideoID, err)
+			continue
+		}
+
+		// Enqueue a new process video task with delay to spread out the load
+		task, err := tasks.NewProcessVideoTask(episode.YoutubeVideoID, episode.SubscriptionID)
+		if err != nil {
+			log.Printf("Failed to create process video task for %s: %v", episode.YoutubeVideoID, err)
+			continue
+		}
+
+		// Add some delay between retries to be even more gentle
+		delay := time.Duration(retriedCount*30) * time.Second
+		options := append(tasks.GetProcessVideoTaskOptions(), asynq.ProcessIn(delay))
+		_, err = h.asynqClient.Enqueue(task, options...)
+		if err != nil {
+			log.Printf("Failed to enqueue process video task for %s: %v", episode.YoutubeVideoID, err)
+			continue
+		}
+
+		retriedCount++
+	}
+
+	log.Printf("Retried %d failed episodes", retriedCount)
 	return nil
 }
 
@@ -205,10 +353,23 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 		channelURL,
 	)
 
+	// Add gentle delay before making YouTube request
+	time.Sleep(getYouTubeRequestDelay())
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("failed to execute yt-dlp command: %v, output: %s", err, string(output))
-		return fmt.Errorf("failed to execute yt-dlp command: %w", err)
+		outputStr := string(output)
+		log.Printf("failed to execute yt-dlp command for channel check: %v, output: %s", err, outputStr)
+
+		// For channel checking, we're more lenient and always retry temporary errors
+		if isTemporaryYouTubeError(outputStr) {
+			log.Printf("Temporary error checking channel %s, will retry", subscription.YoutubeChannelID)
+			return fmt.Errorf("temporary error checking channel: %w", err)
+		}
+
+		// Even for "unknown" errors in channel checking, we'll log but not fail permanently
+		log.Printf("Error checking channel %s: %v", subscription.YoutubeChannelID, err)
+		return fmt.Errorf("error checking channel: %w", err)
 	}
 
 	// The output is a stream of JSON objects, one per line
@@ -235,14 +396,14 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 			continue
 		}
 
-		// Enqueue a task to process the video
+		// Enqueue a task to process the video with enhanced retry options
 		task, err := tasks.NewProcessVideoTask(episode.YoutubeVideoID, episode.SubscriptionID)
 		if err != nil {
 			log.Printf("failed to create process video task: %v", err)
 			continue
 		}
 
-		_, err = h.asynqClient.Enqueue(task)
+		_, err = h.asynqClient.Enqueue(task, tasks.GetProcessVideoTaskOptions()...)
 		if err != nil {
 			log.Printf("failed to enqueue process video task: %v", err)
 			continue

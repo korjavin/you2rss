@@ -28,15 +28,24 @@ func main() {
 		&asynq.SchedulerOpts{},
 	)
 
-	task, err := tasks.NewCheckAllSubscriptionsTask()
+	// Check all subscriptions every hour
+	checkSubsTask, err := tasks.NewCheckAllSubscriptionsTask()
 	if err != nil {
-		log.Fatalf("could not create task: %v", err)
+		log.Fatalf("could not create check subscriptions task: %v", err)
+	}
+	_, err = scheduler.Register("@every 1h", checkSubsTask)
+	if err != nil {
+		log.Fatalf("could not register check subscriptions task: %v", err)
 	}
 
-	// Run every hour
-	_, err = scheduler.Register("@every 1h", task)
+	// Retry failed episodes every 6 hours (less frequent to be gentle)
+	retryFailedTask, err := tasks.NewRetryFailedEpisodesTask()
 	if err != nil {
-		log.Fatalf("could not register task: %v", err)
+		log.Fatalf("could not create retry failed episodes task: %v", err)
+	}
+	_, err = scheduler.Register("@every 6h", retryFailedTask)
+	if err != nil {
+		log.Fatalf("could not register retry failed episodes task: %v", err)
 	}
 
 	log.Printf("Scheduler starting (commit: %s)", CommitSHA)

@@ -312,6 +312,7 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error creating task: %v", err)
 	} else {
+		// Use default options for channel checking (less aggressive than video processing)
 		_, err = h.asynqClient.Enqueue(task)
 		if err != nil {
 			log.Printf("Error enqueuing task: %v", err)

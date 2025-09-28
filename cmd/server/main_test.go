@@ -107,14 +107,21 @@ func TestDeleteSubscriptionHandler(t *testing.T) {
 func TestGetRSSFeedHandler(t *testing.T) {
 	app := NewApp(nil)
 	_, mock := test.NewMockDB(t)
-	user := &models.User{ID: 1, RSSUUID: "test-uuid", TelegramUsername: "testuser", CreatedAt: time.Now()}
+	subscription := &models.Subscription{
+		ID:                  1,
+		UserID:              1,
+		YoutubeChannelID:    "UC-test",
+		YoutubeChannelTitle: "Test Channel",
+		RSSUUID:             "test-uuid",
+		CreatedAt:           time.Now(),
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/rss/test-uuid", nil)
 	rr := httptest.NewRecorder()
 
-	userRows := sqlmock.NewRows([]string{"id", "telegram_id", "telegram_username", "rss_uuid", "created_at", "updated_at"}).
-		AddRow(user.ID, 123, user.TelegramUsername, user.RSSUUID, user.CreatedAt, user.CreatedAt)
-	mock.ExpectQuery("SELECT (.+) FROM users WHERE rss_uuid = \\$1").WithArgs("test-uuid").WillReturnRows(userRows)
+	subscriptionRows := sqlmock.NewRows([]string{"id", "user_id", "youtube_channel_id", "youtube_channel_title", "rss_uuid", "created_at"}).
+		AddRow(subscription.ID, subscription.UserID, subscription.YoutubeChannelID, subscription.YoutubeChannelTitle, subscription.RSSUUID, subscription.CreatedAt)
+	mock.ExpectQuery("SELECT (.+) FROM subscriptions WHERE rss_uuid = \\$1").WithArgs("test-uuid").WillReturnRows(subscriptionRows)
 
 	title := "Test Episode"
 	desc := "A test episode."
@@ -122,9 +129,9 @@ func TestGetRSSFeedHandler(t *testing.T) {
 	audioSize := int64(12345)
 	publishedAt := time.Now()
 
-	episodeRows := sqlmock.NewRows([]string{"id", "title", "description", "audio_path", "audio_size_bytes", "published_at"}).
-		AddRow(1, title, desc, audioFile, audioSize, publishedAt)
-	mock.ExpectQuery("SELECT (.+) FROM episodes e").WithArgs(user.ID).WillReturnRows(episodeRows)
+	episodeRows := sqlmock.NewRows([]string{"id", "subscription_id", "youtube_video_id", "title", "description", "published_at", "audio_uuid", "audio_path", "audio_size_bytes", "duration_seconds", "status", "created_at"}).
+		AddRow(1, 1, "test-video-id", title, desc, publishedAt, "audio-uuid", audioFile, audioSize, 3600, "COMPLETED", time.Now())
+	mock.ExpectQuery("SELECT \\* FROM episodes WHERE subscription_id = \\$1 AND status = 'COMPLETED' ORDER BY published_at DESC").WithArgs(subscription.ID).WillReturnRows(episodeRows)
 
 	app.router.ServeHTTP(rr, req)
 

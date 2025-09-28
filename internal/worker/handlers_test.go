@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"yt-podcaster/internal/db"
+	"yt-podcaster/internal/models"
+	"yt-podcaster/pkg/tasks"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hibiken/asynq"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
-	"yt-podcaster/internal/db"
-	"yt-podcaster/internal/models"
-	"yt-podcaster/pkg/tasks"
 )
 
 // mockTaskEnqueuer is a mock implementation of tasks.TaskEnqueuer for testing.
@@ -45,7 +46,7 @@ func TestHandleCheckChannelTask(t *testing.T) {
 	// 2. Setup mock execCommand and execCommandContext
 	originalExecCommand := execCommand
 	originalExecCommandContext := execCommandContext
-	defer func() { 
+	defer func() {
 		execCommand = originalExecCommand
 		execCommandContext = originalExecCommandContext
 	}()
@@ -74,15 +75,18 @@ func TestHandleCheckChannelTask(t *testing.T) {
 	// 6. Define mock expectations
 	sub := models.Subscription{ID: 1, UserID: 1, YoutubeChannelID: "test-channel", YoutubeChannelTitle: "Test Channel", CreatedAt: time.Now()}
 	subRows := sqlmock.NewRows([]string{"id", "user_id", "youtube_channel_id", "youtube_channel_title", "created_at"}).AddRow(sub.ID, sub.UserID, sub.YoutubeChannelID, sub.YoutubeChannelTitle, sub.CreatedAt)
-	mock.ExpectQuery("SELECT \\* FROM subscriptions WHERE id = \\$1").WithArgs(1).WillReturnRows(subRows)
+	mock.ExpectQuery(`SELECT \* FROM subscriptions WHERE id = \$1`).WithArgs(1).WillReturnRows(subRows)
+
+	// Mock db call for IsNewChannel
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM episodes WHERE subscription_id = \$1`).WithArgs(1).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	// Mock db call for checking if video exists and creating a new episode
-	mock.ExpectQuery("SELECT \\* FROM episodes WHERE youtube_video_id = \\$1").WithArgs("video1").WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT \* FROM episodes WHERE youtube_video_id = \$1`).WithArgs("video1").WillReturnError(sql.ErrNoRows)
 	newEpisode := models.Episode{ID: 2, SubscriptionID: 1, YoutubeVideoID: "video1"}
 	epRows := sqlmock.NewRows([]string{"id", "subscription_id", "youtube_video_id"}).AddRow(newEpisode.ID, newEpisode.SubscriptionID, newEpisode.YoutubeVideoID)
-	mock.ExpectQuery("INSERT INTO episodes").WithArgs(1, "video1").WillReturnRows(epRows)
+	mock.ExpectQuery(`INSERT INTO episodes`).WithArgs(1, "video1").WillReturnRows(epRows)
 
-	mock.ExpectQuery("SELECT \\* FROM episodes WHERE youtube_video_id = \\$1").WithArgs("video2").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1)) // video2 already exists
+	mock.ExpectQuery(`SELECT \* FROM episodes WHERE youtube_video_id = \$1`).WithArgs("video2").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1)) // video2 already exists
 
 	// 7. Call the handler
 	err = handler.HandleCheckChannelTask(context.Background(), task)
@@ -117,7 +121,7 @@ func TestHandleProcessVideoTask(t *testing.T) {
 	// 2. Setup mock execCommand and mock audio file
 	originalExecCommand := execCommand
 	originalExecCommandContext := execCommandContext
-	defer func() { 
+	defer func() {
 		execCommand = originalExecCommand
 		execCommandContext = originalExecCommandContext
 	}()
@@ -153,10 +157,10 @@ func TestHandleProcessVideoTask(t *testing.T) {
 	// 5. Define mock expectations
 	episode := models.Episode{ID: 1, SubscriptionID: 1, YoutubeVideoID: "video1", AudioUUID: "test-uuid"}
 	epRows := sqlmock.NewRows([]string{"id", "subscription_id", "youtube_video_id", "audio_uuid"}).AddRow(episode.ID, episode.SubscriptionID, episode.YoutubeVideoID, episode.AudioUUID)
-	mock.ExpectQuery("SELECT \\* FROM episodes WHERE youtube_video_id = \\$1").WithArgs("video1").WillReturnRows(epRows)
+	mock.ExpectQuery(`SELECT \* FROM episodes WHERE youtube_video_id = \$1`).WithArgs("video1").WillReturnRows(epRows)
 
-	mock.ExpectExec("UPDATE episodes SET status = \\$1 WHERE id = \\$2").WithArgs(db.StatusProcessing, episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec("UPDATE episodes SET status = 'COMPLETED'").WithArgs("Test Title", "Test Description", "audio/test-uuid.m4a", int64(16), 123, sqlmock.AnyArg(), episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE episodes SET status = \$1 WHERE id = \$2`).WithArgs(db.StatusProcessing, episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE episodes SET status = 'COMPLETED', title = \$1, description = \$2, audio_path = \$3, audio_size_bytes = \$4, duration_seconds = \$5, published_at = \$6 WHERE id = \$7`).WithArgs("Test Title", "Test Description", "audio/test-uuid.m4a", int64(16), 123, sqlmock.AnyArg(), episode.ID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// 6. Call the handler
 	err = handler.HandleProcessVideoTask(context.Background(), task)
@@ -178,8 +182,9 @@ func TestHelperProcess(t *testing.T) {
 	args := strings.Split(os.Getenv("YT_DLP_ARGS"), " ")
 
 	if contains(args, "--flat-playlist") {
-		fmt.Println(`{"id": "video1", "title": "Video 1"}`)
-		fmt.Println(`{"id": "video2", "title": "Video 2"}`)
+		today := time.Now().Format("20060102")
+		fmt.Println(fmt.Sprintf(`{"id": "video1", "title": "Video 1", "upload_date": "%s"}`, today))
+		fmt.Println(`{"id": "video2", "title": "Video 2", "upload_date": "20200101"}`)
 		os.Exit(0)
 	}
 

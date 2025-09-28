@@ -94,3 +94,14 @@ func GetAllSubscriptions() ([]models.Subscription, error) {
 	}
 	return subscriptions, nil
 }
+
+func IsNewChannel(subscriptionID int) (bool, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM episodes WHERE subscription_id = $1"
+	err := DB.Get(&count, query, subscriptionID)
+	if err != nil {
+		log.Printf("Error counting episodes for subscription %d: %v", subscriptionID, err)
+		return false, err
+	}
+	return count == 0, nil
+}

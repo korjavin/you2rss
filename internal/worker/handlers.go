@@ -447,20 +447,52 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 	}
 
 	// The output is a stream of JSON objects, one per line
-	for i, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		var videoInfo struct {
-			ID string `json:"id"`
-		}
+	var videos []YtDlpOutput
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		var videoInfo YtDlpOutput
 		if err := json.Unmarshal([]byte(line), &videoInfo); err != nil {
 			log.Printf("failed to unmarshal video info: %v", err)
 			continue
 		}
+		videos = append(videos, videoInfo)
+	}
 
+	// Determine if this is a new channel
+	isNewChannel, err := db.IsNewChannel(subscription.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check if channel is new: %w", err)
+	}
+
+	// Get the upload date of the newest video
+	var newestVideoDate time.Time
+	if len(videos) > 0 {
+		if t, err := time.Parse("20060102", videos[0].UploadDate); err == nil {
+			newestVideoDate = t
+		}
+	}
+
+	// Calculate the cutoff date (1 year before the newest video)
+	cutoffDate := newestVideoDate.AddDate(-1, 0, 0)
+
+	processedCount := 0
+	for i, videoInfo := range videos {
 		// Check if we already have this video
 		_, err := db.GetEpisodeByYoutubeID(videoInfo.ID)
 		if err == nil {
 			// We already have this video, so we can skip it
 			continue
+		}
+
+		// If it's a new channel, limit to 50 videos
+		if isNewChannel && processedCount >= 50 {
+			break
+		}
+
+		// Check if the video is older than 1 year from the newest video
+		if uploadDate, err := time.Parse("20060102", videoInfo.UploadDate); err == nil {
+			if uploadDate.Before(cutoffDate) {
+				continue
+			}
 		}
 
 		// If we don't have this video, create a new episode and enqueue a task to process it
@@ -488,6 +520,7 @@ func (h *TaskHandler) HandleCheckChannelTask(ctx context.Context, t *asynq.Task)
 			log.Printf("failed to enqueue process video task: %v", err)
 			continue
 		}
+		processedCount++
 	}
 
 	return nil

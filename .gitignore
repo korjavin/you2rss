@@ -20,6 +20,9 @@ go.work
 # Environment variables
 .env
 
+# Deployment information (local only)
+DEPLOYMENT_INFO.md
+
 # Build output
 /bin
 /main

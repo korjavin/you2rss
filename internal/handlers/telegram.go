@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"yt-podcaster/internal/db"
@@ -49,6 +50,34 @@ func (h *Handlers) StartTelegramBot() {
 	}
 }
 
+// processChannelInput processes user input and converts it to a valid YouTube channel URL
+// Supports:
+// - Full YouTube URLs (https://youtube.com/@channel, https://youtube.com/channel/UCxxxxx, etc.)
+// - @channel_name format (converts to https://youtube.com/@channel_name)
+func (h *Handlers) processChannelInput(input string) string {
+	input = strings.TrimSpace(input)
+
+	// If it's already a valid YouTube URL, return it
+	if validateYouTubeURL(input) {
+		return input
+	}
+
+	// Check if it's @channel_name format
+	if strings.HasPrefix(input, "@") {
+		channelName := strings.TrimPrefix(input, "@")
+
+		// Validate channel name (alphanumeric, underscore, hyphen, dot)
+		channelNameRegex := regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+		if channelNameRegex.MatchString(channelName) && len(channelName) > 0 {
+			// Convert to YouTube URL
+			return fmt.Sprintf("https://www.youtube.com/@%s", channelName)
+		}
+	}
+
+	// Return empty string if input doesn't match any supported format
+	return ""
+}
+
 func (h *Handlers) handleTelegramMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	log.Printf("[%s] %s", message.From.UserName, message.Text)
 
@@ -60,9 +89,9 @@ func (h *Handlers) handleTelegramMessage(bot *tgbotapi.BotAPI, message *tgbotapi
 		return
 	}
 
-	channelURL := message.Text
-	if !validateYouTubeURL(channelURL) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Invalid YouTube URL format")
+	channelURL := h.processChannelInput(message.Text)
+	if channelURL == "" {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a valid YouTube channel URL or @channel_name format.\n\nExamples:\n• https://youtube.com/@channelname\n• @channelname\n• https://youtube.com/channel/UCxxxxx")
 		bot.Send(msg)
 		return
 	}

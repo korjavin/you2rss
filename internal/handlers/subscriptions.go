@@ -322,14 +322,21 @@ func (h *Handlers) PostSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
+	log.Printf("DeleteSubscription handler called")
 	user := r.Context().Value(models.UserContextKey).(*models.User)
+	log.Printf("DeleteSubscription: User ID %d", user.ID)
+
 	vars := mux.Vars(r)
+	log.Printf("DeleteSubscription: Route vars: %v", vars)
+
 	subscriptionID, err := strconv.Atoi(vars["id"])
 	if err != nil {
+		log.Printf("DeleteSubscription: Invalid subscription ID: %v", err)
 		http.Error(w, "Invalid subscription ID", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("DeleteSubscription: Attempting to delete subscription %d for user %d", subscriptionID, user.ID)
 	err = db.DeleteSubscription(user.ID, subscriptionID)
 	if err != nil {
 		log.Printf("Error deleting subscription: %v", err)
@@ -337,5 +344,6 @@ func (h *Handlers) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("DeleteSubscription: Successfully deleted subscription %d", subscriptionID)
 	w.WriteHeader(http.StatusOK)
 }

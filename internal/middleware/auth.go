@@ -78,7 +78,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 			log.Printf("AuthMiddleware: Successfully authenticated user %d", user.ID)
 			ctx := context.WithValue(r.Context(), models.UserContextKey, user)
+			log.Printf("AuthMiddleware: Calling next handler for %s %s (test mode)", r.Method, r.URL.Path)
 			next.ServeHTTP(w, r.WithContext(ctx))
+			log.Printf("AuthMiddleware: Completed request %s %s (test mode)", r.Method, r.URL.Path)
 			return
 		}
 
@@ -110,6 +112,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		log.Printf("AuthMiddleware: Successfully authenticated user %d", user.ID)
 		ctx := context.WithValue(r.Context(), models.UserContextKey, user)
+		log.Printf("AuthMiddleware: Calling next handler for %s %s", r.Method, r.URL.Path)
 		next.ServeHTTP(w, r.WithContext(ctx))
+		log.Printf("AuthMiddleware: Completed request %s %s", r.Method, r.URL.Path)
 	})
 }

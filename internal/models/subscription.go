@@ -9,5 +9,6 @@ type Subscription struct {
 	YoutubeChannelID    string    `db:"youtube_channel_id"`
 	YoutubeChannelTitle string    `db:"youtube_channel_title"`
 	RSSUUID             string    `db:"rss_uuid"`
+	Active              bool      `db:"active"`
 	CreatedAt           time.Time `db:"created_at"`
 }

@@ -13,9 +13,9 @@ func GetSubscriptionByID(id int) (models.Subscription, error) {
 
 func GetSubscriptionsByUserID(userID int64) ([]models.Subscription, error) {
 	query := `
-		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, active, created_at
 		FROM subscriptions
-		WHERE user_id = $1
+		WHERE user_id = $1 AND active = TRUE
 		ORDER BY created_at DESC
 	`
 	var subscriptions []models.Subscription
@@ -29,7 +29,7 @@ func GetSubscriptionsByUserID(userID int64) ([]models.Subscription, error) {
 
 func CountSubscriptionsByUserID(userID int64) (int, error) {
 	var count int
-	query := "SELECT COUNT(*) FROM subscriptions WHERE user_id = $1"
+	query := "SELECT COUNT(*) FROM subscriptions WHERE user_id = $1 AND active = TRUE"
 	err := DB.Get(&count, query, userID)
 	if err != nil {
 		log.Printf("Error counting subscriptions for user %d: %v", userID, err)
@@ -42,7 +42,7 @@ func AddSubscription(userID int64, channelID string, channelTitle string) (*mode
 	query := `
 		INSERT INTO subscriptions (user_id, youtube_channel_id, youtube_channel_title)
 		VALUES ($1, $2, $3)
-		RETURNING id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
+		RETURNING id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, active, created_at
 	`
 	sub := &models.Subscription{}
 	err := DB.Get(sub, query, userID, channelID, channelTitle)
@@ -55,23 +55,25 @@ func AddSubscription(userID int64, channelID string, channelTitle string) (*mode
 
 func DeleteSubscription(userID int64, subscriptionID int) error {
 	query := `
-		DELETE FROM subscriptions
+		UPDATE subscriptions
+		SET active = FALSE
 		WHERE id = $1 AND user_id = $2
 	`
 	_, err := DB.Exec(query, subscriptionID, userID)
 	if err != nil {
-		log.Printf("Error deleting subscription %d for user %d: %v", subscriptionID, userID, err)
+		log.Printf("Error soft-deleting subscription %d for user %d: %v", subscriptionID, userID, err)
 		return err
 	}
+	log.Printf("Successfully soft-deleted subscription %d for user %d", subscriptionID, userID)
 	return nil
 }
 
 func GetSubscriptionByRSSUUID(rssUUID string) (models.Subscription, error) {
 	subscription := models.Subscription{}
 	query := `
-		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, active, created_at
 		FROM subscriptions
-		WHERE rss_uuid = $1
+		WHERE rss_uuid = $1 AND active = TRUE
 	`
 	err := DB.Get(&subscription, query, rssUUID)
 	if err != nil {
@@ -82,8 +84,9 @@ func GetSubscriptionByRSSUUID(rssUUID string) (models.Subscription, error) {
 
 func GetAllSubscriptions() ([]models.Subscription, error) {
 	query := `
-		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, created_at
+		SELECT id, user_id, youtube_channel_id, youtube_channel_title, rss_uuid, active, created_at
 		FROM subscriptions
+		WHERE active = TRUE
 		ORDER BY created_at DESC
 	`
 	var subscriptions []models.Subscription

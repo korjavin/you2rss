@@ -96,7 +96,7 @@ func TestDeleteSubscriptionHandler(t *testing.T) {
 		AddRow(user.ID, user.TelegramUsername, "some-uuid", user.CreatedAt, user.CreatedAt)
 	mock.ExpectQuery(`INSERT INTO users \(id, telegram_username\) VALUES \(\$1, \$2\) ON CONFLICT \(id\) DO UPDATE SET telegram_username = EXCLUDED\.telegram_username, updated_at = NOW\(\) RETURNING`).WithArgs(int64(123), "testuser").WillReturnRows(userRows)
 
-	mock.ExpectExec("DELETE FROM subscriptions WHERE id = \\$1 AND user_id = \\$2").WithArgs(1, user.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE subscriptions SET active = FALSE WHERE id = \\$1 AND user_id = \\$2").WithArgs(1, user.ID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	app.router.ServeHTTP(rr, req)
 
@@ -119,9 +119,9 @@ func TestGetRSSFeedHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/rss/test-uuid", nil)
 	rr := httptest.NewRecorder()
 
-	subscriptionRows := sqlmock.NewRows([]string{"id", "user_id", "youtube_channel_id", "youtube_channel_title", "rss_uuid", "created_at"}).
-		AddRow(subscription.ID, subscription.UserID, subscription.YoutubeChannelID, subscription.YoutubeChannelTitle, subscription.RSSUUID, subscription.CreatedAt)
-	mock.ExpectQuery("SELECT (.+) FROM subscriptions WHERE rss_uuid = \\$1").WithArgs("test-uuid").WillReturnRows(subscriptionRows)
+	subscriptionRows := sqlmock.NewRows([]string{"id", "user_id", "youtube_channel_id", "youtube_channel_title", "rss_uuid", "active", "created_at"}).
+		AddRow(subscription.ID, subscription.UserID, subscription.YoutubeChannelID, subscription.YoutubeChannelTitle, subscription.RSSUUID, true, subscription.CreatedAt)
+	mock.ExpectQuery("SELECT (.+) FROM subscriptions WHERE rss_uuid = \\$1 AND active = TRUE").WithArgs("test-uuid").WillReturnRows(subscriptionRows)
 
 	title := "Test Episode"
 	desc := "A test episode."
